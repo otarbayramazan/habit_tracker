@@ -2,6 +2,41 @@ import type { Language } from '@/context/SettingsContext';
 
 export const translations = {
   en: {
+    perfectDays: "Perfect days",
+    overallRing: "Overall",
+    last30DaysShort: "in 30 days",
+    allTimeTitle: "All-time history",
+    allTime: "all time",
+    missedDays: "Missed",
+    perfectWeeks: "Perfect {n} weeks in a row",
+    weeksTitle: "Weeks",
+    tapRingHint: "Tap a ring to see the dates",
+    weekInProgress: "{range}: {done} of {total} days, week in progress",
+    weekResult: "{range}: {rate}%",
+    noHabitYet: "{range}: habit didn’t exist yet",
+    thisWeekSoFar: "This week so far",
+    betterThanLast: "{n}% better than last week",
+    worseThanLast: "{n}% worse than last week",
+    sameAsLast: "Same as last week",
+    byMonth: "By month",
+    allHabits: "All habits",
+    byWeekday: "By day of week",
+    weeklyTrend: "Weekly trend",
+    last12Weeks: "Last 12 weeks",
+    last30Days: "Last 30 days",
+    compareHabits: "Habits compared",
+    avgRate: "Average completion",
+    weakestDay: "Weakest day: {day}",
+    strongestDay: "Best day: {day}",
+    notEnoughData: "Not enough data yet",
+    todayDone: "Done today",
+    monFull: "Monday",
+    tueFull: "Tuesday",
+    wedFull: "Wednesday",
+    thuFull: "Thursday",
+    friFull: "Friday",
+    satFull: "Saturday",
+    sunFull: "Sunday",
     todaySummary: "Today: {done} of {total}",
     allDoneToday: "All done for today",
     less: "Less",
@@ -101,6 +136,41 @@ export const translations = {
     customColor: "Custom color",
   },
   ru: {
+    perfectDays: "Идеальных дней",
+    overallRing: "Общий итог",
+    last30DaysShort: "за 30 дней",
+    allTimeTitle: "Вся история",
+    allTime: "за всё время",
+    missedDays: "Пропущено",
+    perfectWeeks: "Идеально {n}-ю неделю подряд",
+    weeksTitle: "Недели",
+    tapRingHint: "Нажми на кольцо, чтобы увидеть даты",
+    weekInProgress: "{range}: {done} из {total} дней, неделя ещё идёт",
+    weekResult: "{range}: {rate}%",
+    noHabitYet: "{range}: привычки ещё не было",
+    thisWeekSoFar: "Эта неделя пока",
+    betterThanLast: "Лучше прошлой недели на {n}%",
+    worseThanLast: "Хуже прошлой недели на {n}%",
+    sameAsLast: "Как на прошлой неделе",
+    byMonth: "По месяцам",
+    allHabits: "Все привычки",
+    byWeekday: "По дням недели",
+    weeklyTrend: "Тренд по неделям",
+    last12Weeks: "Последние 12 недель",
+    last30Days: "Последние 30 дней",
+    compareHabits: "Сравнение привычек",
+    avgRate: "Средний процент",
+    weakestDay: "Слабее всего: {day}",
+    strongestDay: "Лучше всего: {day}",
+    notEnoughData: "Пока мало данных",
+    todayDone: "Сегодня выполнено",
+    monFull: "понедельник",
+    tueFull: "вторник",
+    wedFull: "среда",
+    thuFull: "четверг",
+    friFull: "пятница",
+    satFull: "суббота",
+    sunFull: "воскресенье",
     todaySummary: "Сегодня: {done} из {total}",
     allDoneToday: "На сегодня всё выполнено",
     less: "Меньше",
@@ -200,6 +270,41 @@ export const translations = {
     customColor: "Свой цвет",
   },
   kk: {
+    perfectDays: "Мінсіз күндер",
+    overallRing: "Жалпы қорытынды",
+    last30DaysShort: "30 күнде",
+    allTimeTitle: "Бүкіл тарих",
+    allTime: "барлық уақыт",
+    missedDays: "Өткізілді",
+    perfectWeeks: "{n} апта қатарынан мінсіз",
+    weeksTitle: "Апталар",
+    tapRingHint: "Күндерді көру үшін сақинаны бас",
+    weekInProgress: "{range}: {total} күннің {done}, апта әлі жүріп жатыр",
+    weekResult: "{range}: {rate}%",
+    noHabitYet: "{range}: әдет әлі болмаған",
+    thisWeekSoFar: "Осы апта әзірге",
+    betterThanLast: "Өткен аптадан {n}% жақсы",
+    worseThanLast: "Өткен аптадан {n}% нашар",
+    sameAsLast: "Өткен аптадай",
+    byMonth: "Айлар бойынша",
+    allHabits: "Барлық әдеттер",
+    byWeekday: "Апта күндері бойынша",
+    weeklyTrend: "Апталық үрдіс",
+    last12Weeks: "Соңғы 12 апта",
+    last30Days: "Соңғы 30 күн",
+    compareHabits: "Әдеттерді салыстыру",
+    avgRate: "Орташа пайыз",
+    weakestDay: "Ең әлсіз күн: {day}",
+    strongestDay: "Ең жақсы күн: {day}",
+    notEnoughData: "Әзірге дерек аз",
+    todayDone: "Бүгін орындалды",
+    monFull: "дүйсенбі",
+    tueFull: "сейсенбі",
+    wedFull: "сәрсенбі",
+    thuFull: "бейсенбі",
+    friFull: "жұма",
+    satFull: "сенбі",
+    sunFull: "жексенбі",
     todaySummary: "Бүгін: {total} ішінен {done}",
     allDoneToday: "Бүгінгі әдеттер орындалды",
     less: "Аз",
@@ -317,4 +422,38 @@ export const LANGUAGE_NAMES: Record<Language, string> = {
 export function useT(lang: Language) {
   return (key: TranslationKey): string =>
     (translations[lang] as Record<string, string>)[key] ?? translations.en[key] ?? key;
+}
+
+// ── Форматирование дат ──
+// Браузеры часто не знают казахские названия месяцев (показывают «M10»),
+// поэтому для казахского используем свои названия, для остальных — встроенные.
+const KK_MONTHS = [
+  'қаңтар', 'ақпан', 'наурыз', 'сәуір', 'мамыр', 'маусым',
+  'шілде', 'тамыз', 'қыркүйек', 'қазан', 'қараша', 'желтоқсан',
+];
+const KK_MONTHS_SHORT = ['қаң', 'ақп', 'нау', 'сәу', 'мам', 'мау', 'шіл', 'там', 'қыр', 'қаз', 'қар', 'жел'];
+const KK_WEEKDAYS = ['жексенбі', 'дүйсенбі', 'сейсенбі', 'сәрсенбі', 'бейсенбі', 'жұма', 'сенбі'];
+
+/** «октябрь 2026 г.» / «October 2026» / «қазан 2026» */
+export function formatMonthYear(lang: Language, d: Date): string {
+  if (lang === 'kk') return `${KK_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return d.toLocaleDateString(LOCALES[lang], { month: 'long', year: 'numeric' });
+}
+
+/** Короткое название месяца: «окт» / «Oct» / «қаз» */
+export function formatMonthShort(lang: Language, d: Date): string {
+  if (lang === 'kk') return KK_MONTHS_SHORT[d.getMonth()];
+  return d.toLocaleDateString(LOCALES[lang], { month: 'short' }).replace('.', '');
+}
+
+/** «24 окт» / «Oct 24» / «24 қаз» */
+export function formatDayMonthShort(lang: Language, d: Date): string {
+  if (lang === 'kk') return `${d.getDate()} ${KK_MONTHS_SHORT[d.getMonth()]}`;
+  return d.toLocaleDateString(LOCALES[lang], { day: 'numeric', month: 'short' }).replace('.', '');
+}
+
+/** «суббота, 24 октября» / «Saturday, October 24» / «сенбі, 24 қазан» */
+export function formatWeekdayDayMonth(lang: Language, d: Date): string {
+  if (lang === 'kk') return `${KK_WEEKDAYS[d.getDay()]}, ${d.getDate()} ${KK_MONTHS[d.getMonth()]}`;
+  return d.toLocaleDateString(LOCALES[lang], { weekday: 'long', day: 'numeric', month: 'long' });
 }

@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useHabits } from '@/hooks/useHabits';
 import { useSettings } from '@/context/SettingsContext';
-import { LOCALES, useT } from '@/lib/i18n';
-import { ChevronDown, Check, Flame, Trophy, CalendarCheck, Percent, BarChart3 } from 'lucide-react';
+import { formatMonthShort, useT } from '@/lib/i18n';
+import { ChevronDown, Check, Flame, Trophy, CalendarCheck, Percent, BarChart3, LayoutGrid, CircleCheck, Sparkles } from 'lucide-react';
+import { WeekComparison, HabitsComparison, AllTimeRing, perfectDays30 } from '@/components/StatsCharts';
+import { isCompletedOn } from '@/lib/dateUtils';
 import {
   formatDate,
   addDays,
@@ -12,20 +14,24 @@ import {
   completionRate,
   calculateFrequencyStreak,
   calculateBestFrequencyStreak,
-  getMonthlyCounts,
   isScheduledOn,
   getForgivenDates,
+  getMonthlyCounts,
 } from '@/lib/dateUtils';
 import type { HabitWithCompletions, FrequencyType } from '@/lib/supabase';
 import type { Language } from '@/context/SettingsContext';
+
+const ALL = '__all__';
 
 export function StatisticsScreen() {
   const { habits, loading } = useHabits();
   const { language } = useSettings();
   const t = useT(language as Language);
-  const [selectedId, setSelectedId] = useState<string>('');
+  // По умолчанию открыта общая статистика по всем привычкам
+  const [selectedId, setSelectedId] = useState<string>(ALL);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  const isAll = selectedId === ALL;
   const selectedHabit = useMemo<HabitWithCompletions | null>(() => {
     if (habits.length === 0) return null;
     return habits.find((h) => h.id === selectedId) ?? habits[0];
@@ -66,11 +72,11 @@ export function StatisticsScreen() {
     freqType,
     freqDays
   );
+  const monthlyCounts = getMonthlyCounts(completions, target, year);
+  const monthLabels = [t('jan'), t('feb'), t('mar'), t('apr'), t('may'), t('jun'), t('jul'), t('aug'), t('sep'), t('oct'), t('nov'), t('dec')];
   const currentStreak = calculateFrequencyStreak(completions, target, freqType, freqDays);
   const bestStreak = calculateBestFrequencyStreak(completions, target, freqType, freqDays);
-  const monthlyCounts = getMonthlyCounts(completions, target, year);
 
-  const monthLabels = [t('jan'), t('feb'), t('mar'), t('apr'), t('may'), t('jun'), t('jul'), t('aug'), t('sep'), t('oct'), t('nov'), t('dec')];
 
   return (
     <div className="px-4 pt-6 pb-32 max-w-2xl mx-auto">
@@ -82,19 +88,42 @@ export function StatisticsScreen() {
           onClick={() => setDropdownOpen(!dropdownOpen)}
           className="w-full glass rounded-2xl px-4 py-3.5 flex items-center justify-between transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
-              style={{ backgroundColor: `${color}1a` }}
-            >
-              {selectedHabit?.emoji}
-            </div>
-            <span className="text-fg font-medium text-sm">{selectedHabit?.title}</span>
+          <div className="flex items-center gap-3 min-w-0">
+            {isAll ? (
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-elev shrink-0">
+                <LayoutGrid className="w-[18px] h-[18px] text-fg2" />
+              </div>
+            ) : (
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
+                style={{ backgroundColor: `${color}1a` }}
+              >
+                {selectedHabit?.emoji}
+              </div>
+            )}
+            <span className="text-fg font-medium text-sm truncate">
+              {isAll ? t('allHabits') : selectedHabit?.title}
+            </span>
           </div>
           <ChevronDown className={`w-4 h-4 text-muted transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
         </button>
         {dropdownOpen && (
-          <div className="absolute z-30 top-full mt-1 w-full glass-strong rounded-2xl py-1 max-h-64 overflow-y-auto">
+          <div className="absolute z-30 top-full mt-1 w-full glass-strong rounded-2xl py-1 max-h-72 overflow-y-auto">
+            <button
+              onClick={() => {
+                setSelectedId(ALL);
+                setDropdownOpen(false);
+              }}
+              className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-elev2 transition-colors border-b border-line"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-elev">
+                  <LayoutGrid className="w-4 h-4 text-fg2" />
+                </div>
+                <span className="text-fg text-sm font-semibold">{t('allHabits')}</span>
+              </div>
+              {isAll && <Check className="w-4 h-4 text-fg" />}
+            </button>
             {habits.map((h) => (
               <button
                 key={h.id}
@@ -113,13 +142,17 @@ export function StatisticsScreen() {
                   </div>
                   <span className="text-fg text-sm font-medium">{h.title}</span>
                 </div>
-                {h.id === (selectedHabit?.id ?? '') && <Check className="w-4 h-4 text-fg" />}
+                {!isAll && h.id === (selectedHabit?.id ?? '') && <Check className="w-4 h-4 text-fg" />}
               </button>
             ))}
           </div>
         )}
       </div>
 
+      {isAll ? (
+        <OverallStats habits={habits} t={t} />
+      ) : (
+        <>
       {/* Year heatmap */}
       <YearHeatmap
         completions={completions}
@@ -158,9 +191,52 @@ export function StatisticsScreen() {
         />
       </div>
 
-      {/* Monthly line chart */}
+      {/* Эта неделя против прошлой */}
+      {selectedHabit && <WeekComparison habit={selectedHabit} t={t} />}
+
+      {/* График по месяцам (как раньше) */}
       <MonthlyLineChart data={monthlyCounts} labels={monthLabels} color={color} />
+        </>
+      )}
     </div>
+  );
+}
+
+// ── Общая статистика: две цифры и сравнение привычек ──
+function OverallStats({
+  habits,
+  t,
+}: {
+  habits: HabitWithCompletions[];
+  t: ReturnType<typeof useT>;
+}) {
+  const now = new Date();
+  const todays = habits.filter((h) => isScheduledOn(now, h.frequency_type ?? 'everyday', h.frequency_days ?? []));
+  const doneToday = todays.filter((h) =>
+    isCompletedOn(now, h.completions, h.target_count, h.frequency_type ?? 'everyday', h.frequency_days ?? [])
+  ).length;
+  const perfect = perfectDays30(habits);
+  const neutral = '#8e8e93';
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3 mb-5">
+        <MetricCard
+          icon={<Sparkles className="w-4 h-4" />}
+          value={perfect}
+          label={`${t('perfectDays')} · ${t('last30Days').toLowerCase()}`}
+          color={neutral}
+        />
+        <MetricCard
+          icon={<CircleCheck className="w-4 h-4" />}
+          value={`${doneToday}/${todays.length}`}
+          label={t('todayDone')}
+          color={neutral}
+        />
+      </div>
+      <HabitsComparison habits={habits} t={t} />
+      <AllTimeRing habits={habits} t={t} />
+    </>
   );
 }
 
@@ -239,7 +315,7 @@ function YearHeatmap({
     if (!first) continue;
     monthCols.push({
       col,
-      label: first.toLocaleDateString(LOCALES[language], { month: 'short' }).replace('.', ''),
+      label: formatMonthShort(language, first),
     });
   }
 

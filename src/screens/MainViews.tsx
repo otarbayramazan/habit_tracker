@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useHabits } from '@/hooks/useHabits';
 import { useSettings } from '@/context/SettingsContext';
-import { LOCALES, useT } from '@/lib/i18n';
+import { formatMonthYear, useT } from '@/lib/i18n';
 import { HabitCard } from '@/components/HabitCard';
 import { CreateHabitModal } from '@/screens/CreateHabitModal';
 import { NoteSheet } from '@/components/NoteSheet';
@@ -31,10 +31,7 @@ export function MainViews({ view }: { view: ViewType }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const now = new Date();
-  const dateLabel = now.toLocaleDateString(LOCALES[language], {
-    month: 'long',
-    year: 'numeric',
-  });
+  const dateLabel = formatMonthYear(language, now);
 
   const todaysHabits = habits.filter((h) =>
     isScheduledOn(now, h.frequency_type ?? 'everyday', h.frequency_days ?? [])

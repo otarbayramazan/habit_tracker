@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, X, Check } from 'lucide-react';
 import { useHabits } from '@/context/HabitsContext';
 import { useHideNav } from '@/hooks/useHideNav';
 import { useSettings } from '@/context/SettingsContext';
-import { LOCALES, useT } from '@/lib/i18n';
+import { formatWeekdayDayMonth, useT } from '@/lib/i18n';
 import { addDays, formatDate, parseDate } from '@/lib/dateUtils';
 import type { HabitWithCompletions } from '@/lib/supabase';
 
@@ -51,11 +51,7 @@ export function NoteSheet({ habit, onClose }: Props) {
   if (!habit || !live) return null;
 
   const isToday = date === todayKey;
-  const label = parseDate(date).toLocaleDateString(LOCALES[language], {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
+  const label = formatWeekdayDayMonth(language, parseDate(date));
 
   const shift = (delta: number) => {
     const next = formatDate(addDays(parseDate(date), delta));

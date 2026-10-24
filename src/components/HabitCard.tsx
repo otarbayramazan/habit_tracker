@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import type { HabitWithCompletions, FrequencyType } from '@/lib/supabase';
 import { useSettings, type Language } from '@/context/SettingsContext';
-import { LOCALES, useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 import { Flame, Check, MoreVertical, Pencil, Trash2, Moon, StickyNote, Snowflake } from 'lucide-react';
 import {
   formatDate, addDays, startOfWeek, getWeekDays, getMonthGrid,
@@ -510,7 +510,6 @@ export function HabitCard({
   const weekDays = getWeekDays(now);
   const dayLabels = [t('mon'), t('tue'), t('wed'), t('thu'), t('fri'), t('sat'), t('sun')];
   const monthGrid = getMonthGrid(now);
-  const monthLabel = now.toLocaleDateString(LOCALES[language], { month: 'long' });
   const currentMonth = now.getMonth();
 
   const year = now.getFullYear();

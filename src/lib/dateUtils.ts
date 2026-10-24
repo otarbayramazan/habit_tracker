@@ -379,3 +379,109 @@ export function getForgivenDates(
   }
   return result;
 }
+
+// ── Помощники для графиков статистики ──
+
+type Freq = 'everyday' | 'weekly' | 'monthly';
+
+/** Первый день, с которого привычку честно считать: дата создания или самая ранняя отметка. */
+export function habitStartDate(createdAt: string, completions: Record<string, number>): Date {
+  let start = createdAt.includes('T') ? new Date(createdAt) : parseDate(createdAt);
+  if (isNaN(start.getTime())) start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const firstKey = Object.keys(completions).sort()[0];
+  if (firstKey) {
+    const first = parseDate(firstKey);
+    if (first < start) start = first;
+  }
+  return start;
+}
+
+/**
+ * Выполнено / запланировано в диапазоне дат (включительно).
+ * Дни до начала привычки и дни отдыха не считаются; сегодняшний невыполненный день — тоже.
+ */
+export function rateInRange(
+  completions: Record<string, number>,
+  target: number,
+  frequencyType: Freq,
+  frequencyDays: number[],
+  habitStart: Date,
+  from: Date,
+  to: Date
+): { done: number; scheduled: number } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayKey = formatDate(today);
+  let d = new Date(Math.max(from.getTime(), habitStart.getTime()));
+  d.setHours(0, 0, 0, 0);
+  const end = to < today ? to : today;
+  let done = 0;
+  let scheduled = 0;
+  for (let i = 0; d <= end && i < 3660; d = addDays(d, 1), i++) {
+    if (!isScheduledOn(d, frequencyType, frequencyDays)) continue;
+    const key = formatDate(d);
+    if ((completions[key] ?? 0) >= target) {
+      done++;
+      scheduled++;
+    } else if (key !== todayKey) {
+      scheduled++;
+    }
+  }
+  return { done, scheduled };
+}
+
+/** Процент выполнения по дням недели (Пн…Вс) за всё время; null — нет запланированных дней. */
+export function weekdayRates(
+  completions: Record<string, number>,
+  target: number,
+  frequencyType: Freq,
+  frequencyDays: number[],
+  habitStart: Date
+): (number | null)[] {
+  const done = new Array(7).fill(0);
+  const sched = new Array(7).fill(0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayKey = formatDate(today);
+  let d = new Date(habitStart);
+  for (let i = 0; d <= today && i < 3660; d = addDays(d, 1), i++) {
+    if (!isScheduledOn(d, frequencyType, frequencyDays)) continue;
+    const idx = (d.getDay() + 6) % 7; // 0 = понедельник
+    const key = formatDate(d);
+    if ((completions[key] ?? 0) >= target) {
+      done[idx]++;
+      sched[idx]++;
+    } else if (key !== todayKey) {
+      sched[idx]++;
+    }
+  }
+  return sched.map((s, i) => (s === 0 ? null : Math.round((done[i] / s) * 100)));
+}
+
+/** Процент выполнения по неделям: последние `weeks` недель, последняя — текущая. */
+export function weeklyRates(
+  completions: Record<string, number>,
+  target: number,
+  frequencyType: Freq,
+  frequencyDays: number[],
+  habitStart: Date,
+  weeks = 12
+): { weekStart: Date; rate: number | null }[] {
+  const current = startOfWeek(new Date());
+  const out: { weekStart: Date; rate: number | null }[] = [];
+  for (let w = weeks - 1; w >= 0; w--) {
+    const ws = addDays(current, -w * 7);
+    const { done, scheduled } = rateInRange(
+      completions,
+      target,
+      frequencyType,
+      frequencyDays,
+      habitStart,
+      ws,
+      addDays(ws, 6)
+    );
+    out.push({ weekStart: ws, rate: scheduled === 0 ? null : Math.round((done / scheduled) * 100) });
+  }
+  return out;
+}
