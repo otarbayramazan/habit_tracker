@@ -1,12 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type { HabitWithCompletions, FrequencyType } from '@/lib/supabase';
-import { useSettings } from '@/context/SettingsContext';
-import { useT } from '@/lib/i18n';
-import { Flame, Check, MoreVertical, Pencil, Trash2, Minus } from 'lucide-react';
+import { useSettings, type Language } from '@/context/SettingsContext';
+import { LOCALES, useT } from '@/lib/i18n';
+import { Flame, Check, MoreVertical, Pencil, Trash2, Moon, StickyNote, Snowflake } from 'lucide-react';
 import {
   formatDate, addDays, startOfWeek, getWeekDays, getMonthGrid,
-  parseDate, startOfMonth, isScheduledOn,
-  calculateFrequencyStreak,
+  parseDate, startOfMonth, isScheduledOn, isCompletedOn,
+  calculateFrequencyStreak, getForgivenDates,
 } from '@/lib/dateUtils';
 
 type ViewType = 'week' | 'month' | 'year';
@@ -17,6 +17,7 @@ type Props = {
   onToggle: (habitId: string, date: string, target: number) => void;
   onEdit: (habit: HabitWithCompletions) => void;
   onDelete: (habit: HabitWithCompletions) => void;
+  onNote?: (habit: HabitWithCompletions) => void;
   jiggleMode?: boolean;
   jiggleIndex?: number;
   isDragging?: boolean;
@@ -24,17 +25,16 @@ type Props = {
   onDragStart?: (e: React.PointerEvent) => void;
 };
 
-// ── Rest Day box: same dimensions as a square checkbox, muted and unclickable ──
+// ── День отдыха: нейтральная клетка с чётко читаемой луной (цвет привычки не используется) ──
 function RestDayBox({ size }: { size: 'sm' | 'md' }) {
   const dim = size === 'sm' ? 'w-full aspect-square rounded-[3px]' : 'w-full aspect-square rounded-md';
   return (
     <div
-      className={`${dim} flex items-center justify-center`}
-      style={{ width: '100%', aspectRatio: '1', backgroundColor: '#141414' }}
+      className={`${dim} flex items-center justify-center bg-elev border border-line2`}
+      style={{ width: '100%', aspectRatio: '1' }}
     >
-      <Minus
-        className={size === 'sm' ? 'w-2 h-2' : 'w-3 h-3'}
-        style={{ color: '#3a3a3a' }}
+      <Moon
+        className={size === 'sm' ? 'w-2.5 h-2.5 text-sub' : 'w-4 h-4 text-sub'}
         strokeWidth={2}
       />
     </div>
@@ -52,6 +52,7 @@ function SquareCell({
   size,
   onClick,
   locked,
+  forgiven = false,
 }: {
   count: number;
   target: number;
@@ -62,26 +63,42 @@ function SquareCell({
   size: 'sm' | 'md';
   onClick: () => void;
   locked: boolean;
+  forgiven?: boolean;
 }) {
   const completed = count >= target;
   const partial = count > 0 && count < target;
   const isMulti = target > 1;
   const dim = size === 'sm' ? 'w-full aspect-square rounded-[3px]' : 'w-full aspect-square rounded-md';
   const isLocked = locked || isPast || isFuture;
+  const showFreeze = forgiven && !completed && !partial;
 
   if (isLocked) {
     return (
       <div
-        className={`relative ${dim} flex items-center justify-center ${isToday ? 'ring-1 ring-white/40' : ''}`}
+        className={`relative ${dim} flex items-center justify-center ${isToday ? 'ring-1 ring-fg/40' : ''}`}
         style={{
-          backgroundColor: completed ? color : partial ? `${color}40` : '#1a1a1a',
+          backgroundColor: completed
+            ? color
+            : partial
+              ? `${color}40`
+              : showFreeze
+                ? `${color}26`
+                : 'rgb(var(--c-elev))',
           width: '100%',
           aspectRatio: '1',
-          opacity: isFuture ? 0.2 : completed || partial ? 0.6 : 0.3,
+          // Прошлые дни в полную яркость; бледнее только будущие
+          opacity: isFuture ? 0.35 : 1,
         }}
       >
+        {showFreeze && (
+          <Snowflake
+            className={size === 'sm' ? 'w-2 h-2' : 'w-3.5 h-3.5'}
+            style={{ color, opacity: 0.85 }}
+            strokeWidth={2.5}
+          />
+        )}
         {completed && !isMulti && (
-          <Check className={size === 'sm' ? 'w-2 h-2 text-white' : 'w-3 h-3 text-white'} strokeWidth={3} />
+          <Check className={size === 'sm' ? 'w-2 h-2 text-white animate-pop' : 'w-3 h-3 text-white animate-pop'} strokeWidth={3} />
         )}
         {isMulti && count > 0 && (
           <span
@@ -99,16 +116,32 @@ function SquareCell({
     <button
       onClick={onClick}
       className={`relative ${dim} transition-all active:scale-90 flex items-center justify-center cursor-pointer hover:brightness-125 ${
-        isToday ? 'ring-1 ring-white/40' : ''
+        isToday ? 'ring-1 ring-fg/40' : ''
       }`}
       style={{
-        backgroundColor: completed ? color : partial ? `${color}40` : '#1a1a1a',
+        backgroundColor: completed ? color : partial ? `${color}40` : `${color}26`,
         width: '100%',
         aspectRatio: '1',
       }}
     >
+      {/* Прощённый вчерашний день, который ещё можно отметить */}
+      {count === 0 && forgiven && (
+        <Snowflake
+          className={size === 'sm' ? 'w-2 h-2' : 'w-3.5 h-3.5'}
+          style={{ color, opacity: 0.85 }}
+          strokeWidth={2.5}
+        />
+      )}
+      {/* Призрачная галочка: подсказывает, что сюда нужно нажать (тот же оттенок, что у снежинки) */}
+      {count === 0 && !forgiven && (
+        <Check
+          className={size === 'sm' ? 'w-2 h-2' : 'w-3.5 h-3.5'}
+          style={{ color, opacity: 0.85 }}
+          strokeWidth={2.5}
+        />
+      )}
       {completed && !isMulti && (
-        <Check className={size === 'sm' ? 'w-2 h-2 text-white' : 'w-3 h-3 text-white'} strokeWidth={3} />
+        <Check className={size === 'sm' ? 'w-2 h-2 text-white animate-pop' : 'w-3 h-3 text-white animate-pop'} strokeWidth={3} />
       )}
       {isMulti && count > 0 && (
         <span
@@ -125,6 +158,7 @@ function SquareCell({
 // ── WEEK VIEW ──
 function WeekView({
   dates,
+  forgiven,
   completions,
   target,
   color,
@@ -136,6 +170,7 @@ function WeekView({
   jiggleMode,
 }: {
   dates: Date[];
+  forgiven: Set<string>;
   completions: Record<string, number>;
   target: number;
   color: string;
@@ -147,15 +182,17 @@ function WeekView({
   jiggleMode: boolean;
 }) {
   const isFuture = (d: Date) => d > today;
-  const isPast = (d: Date) => d < today;
   const isToday = (d: Date) => formatDate(d) === formatDate(today);
+  // Отмечать можно сегодня и вчера (вдруг человек забыл); более ранние дни закрыты.
+  const yesterdayKey = formatDate(addDays(today, -1));
+  const isPast = (d: Date) => d < today && formatDate(d) !== yesterdayKey;
 
   return (
     <div className="relative">
       {/* Day labels — always 7 columns */}
       <div className="grid grid-cols-7 mb-2">
         {dates.map((d, i) => (
-          <span key={i} className="text-[10px] text-neutral-500 font-medium text-center">
+          <span key={i} className="text-[10px] text-muted font-medium text-center">
             {dayLabels[i]}
           </span>
         ))}
@@ -176,6 +213,7 @@ function WeekView({
               isPast={isPast(d)}
               isFuture={isFuture(d)}
               size="md"
+              forgiven={forgiven.has(formatDate(d))}
               onClick={() => {
                 if (jiggleMode || isFuture(d) || isPast(d)) return;
                 onToggle(formatDate(d));
@@ -194,6 +232,8 @@ function WeekView({
 // ── MONTH VIEW ──
 function MonthView({
   weeks,
+  forgiven,
+  dayLabels,
   completions,
   target,
   color,
@@ -205,6 +245,8 @@ function MonthView({
   jiggleMode,
 }: {
   weeks: Date[][];
+  forgiven: Set<string>;
+  dayLabels: string[];
   completions: Record<string, number>;
   target: number;
   color: string;
@@ -216,15 +258,17 @@ function MonthView({
   jiggleMode: boolean;
 }) {
   const isFuture = (d: Date) => d > today;
-  const isPast = (d: Date) => d < today;
   const isToday = (d: Date) => formatDate(d) === formatDate(today);
+  // Отмечать можно сегодня и вчера (вдруг человек забыл); более ранние дни закрыты.
+  const yesterdayKey = formatDate(addDays(today, -1));
+  const isPast = (d: Date) => d < today && formatDate(d) !== yesterdayKey;
 
   return (
     <div className="relative">
       {/* Day labels — always 7 columns */}
       <div className="grid grid-cols-7 gap-0.5 mb-1">
-        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((l, i) => (
-          <span key={i} className="text-[8px] text-neutral-600 text-center font-medium">{l}</span>
+        {dayLabels.map((l, i) => (
+          <span key={i} className="text-[8px] text-faint text-center font-medium">{l.slice(0, 2)}</span>
         ))}
       </div>
 
@@ -252,6 +296,7 @@ function MonthView({
                 isPast={isPast(d)}
                 isFuture={isFuture(d)}
                 size="sm"
+                forgiven={forgiven.has(formatDate(d))}
                 onClick={() => {
                   if (jiggleMode || isFuture(d) || isPast(d)) return;
                   onToggle(formatDate(d));
@@ -268,129 +313,120 @@ function MonthView({
   );
 }
 
-// ── YEAR VIEW ──
+// ── YEAR VIEW: 12 мини-календарей ──
 function YearView({
-  yearCells,
-  yearStart,
+  year,
+  forgiven,
   completions,
   target,
   color,
   frequencyType,
   frequencyDays,
-  year,
   today,
-  dayLabels,
   language,
   onToggle,
   jiggleMode,
 }: {
-  yearCells: { d: Date; weekIdx: number; dayIdx: number }[];
-  yearStart: Date;
+  year: number;
+  forgiven: Set<string>;
   completions: Record<string, number>;
   target: number;
   color: string;
   frequencyType: FrequencyType;
   frequencyDays: number[];
-  year: number;
   today: Date;
-  dayLabels: string[];
-  language: string;
+  language: Language;
   onToggle: (date: string) => void;
   jiggleMode: boolean;
 }) {
-  const isFuture = (d: Date) => d > today;
-  const isPast = (d: Date) => d < today;
-  const isToday = (d: Date) => formatDate(d) === formatDate(today);
+  const todayKey = formatDate(today);
+  const yesterdayKey = formatDate(addDays(today, -1));
 
   return (
-    <div className="overflow-hidden">
-      <div className="flex gap-[2px]">
-        <div className="flex flex-col gap-[2px] pr-1 shrink-0" style={{ width: '8px' }}>
-          {dayLabels.map((l, i) => (
-            <div key={i} className="flex items-center justify-end" style={{ height: 'calc((100% - 12px) / 7)' }}>
-              <span className="text-[6px] text-neutral-600 leading-none">{i % 2 === 0 ? l[0] : ''}</span>
-            </div>
-          ))}
-        </div>
-        <div
-          className="grid gap-[2px] flex-1"
-          style={{ gridTemplateColumns: 'repeat(53, minmax(0, 1fr))' }}
-        >
-          {yearCells.map(({ d, weekIdx, dayIdx }) => {
-            const otherYear = d.getFullYear() !== year;
-            const scheduled = isScheduledOn(d, frequencyType, frequencyDays);
-            const todayCell = isToday(d);
-            const future = isFuture(d);
-            const past = isPast(d);
-            const locked = jiggleMode || future || past;
+    <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-3 gap-y-4">
+      {Array.from({ length: 12 }, (_, m) => {
+        const first = new Date(year, m, 1);
+        const weeks = getMonthGrid(first);
+        const title = first.toLocaleDateString(LOCALES[language], { month: 'long' });
+        const isCurrent = year === today.getFullYear() && m === today.getMonth();
 
-            // Other-year placeholder for grid alignment
-            if (otherYear) {
-              return (
-                <div key={`${weekIdx}-${dayIdx}`} style={{ gridColumn: weekIdx + 1, gridRow: dayIdx + 1 }}>
-                  <div className="w-full aspect-square rounded-[2px]" />
-                </div>
-              );
-            }
+        return (
+          <div key={m} className="min-w-0">
+            <p
+              className={`text-[11px] font-medium mb-1.5 truncate capitalize ${
+                isCurrent ? 'text-fg' : 'text-muted'
+              }`}
+            >
+              {title}
+            </p>
+            <div className="grid grid-cols-7 gap-[2px]">
+              {weeks.flat().map((d, i) => {
+                if (d.getMonth() !== m) return <div key={i} className="aspect-square" />;
 
-            // Non-scheduled rest day: muted rest box
-            if (!scheduled) {
-              return (
-                <div key={`${weekIdx}-${dayIdx}`} style={{ gridColumn: weekIdx + 1, gridRow: dayIdx + 1 }}>
-                  <div
-                    className="w-full aspect-square rounded-[2px] flex items-center justify-center"
-                    style={{ backgroundColor: '#141414' }}
+                const key = formatDate(d);
+                const future = d > today;
+                const isTodayCell = key === todayKey;
+                const scheduled = isScheduledOn(d, frequencyType, frequencyDays);
+
+                // День отдыха: нейтральная клетка с точкой (значок на такой клетке не помещается)
+                if (!scheduled) {
+                  return (
+                    <div
+                      key={i}
+                      className="aspect-square rounded-[3px] bg-elev flex items-center justify-center"
+                      style={{ opacity: future ? 0.5 : 1 }}
+                    >
+                      <span
+                        className="w-[3px] h-[3px] rounded-full"
+                        style={{ backgroundColor: 'rgb(var(--c-muted))' }}
+                      />
+                    </div>
+                  );
+                }
+
+                const count = completions[key] ?? 0;
+                const completed = count >= target;
+                const partial = count > 0 && count < target;
+                const freeze = forgiven.has(key) && !completed && !partial;
+                const canTap = (isTodayCell || key === yesterdayKey) && !jiggleMode;
+                const waiting = isTodayCell && !completed && !partial;
+
+                return (
+                  <button
+                    key={i}
+                    disabled={!canTap}
+                    onClick={() => onToggle(key)}
+                    className={`aspect-square rounded-[3px] flex items-center justify-center transition-all ${
+                      canTap ? 'cursor-pointer active:scale-90' : 'cursor-default'
+                    } ${isTodayCell ? 'ring-1 ring-fg/40' : ''}`}
+                    style={{
+                      backgroundColor: completed
+                        ? color
+                        : partial
+                          ? `${color}59`
+                          : freeze || waiting
+                            ? `${color}33`
+                            : 'rgb(var(--c-elev))',
+                      opacity: future ? 0.5 : 1,
+                    }}
                   >
-                    <Minus className="w-[4px] h-[4px]" style={{ color: '#3a3a3a' }} strokeWidth={2} />
-                  </div>
-                </div>
-              );
-            }
-
-            // Scheduled day: clickable cell
-            const completed = (completions[formatDate(d)] ?? 0) >= target;
-            const partial = (completions[formatDate(d)] ?? 0) > 0 && (completions[formatDate(d)] ?? 0) < target;
-            return (
-              <div key={`${weekIdx}-${dayIdx}`} style={{ gridColumn: weekIdx + 1, gridRow: dayIdx + 1 }}>
-                <button
-                  onClick={() => {
-                    if (jiggleMode) return;
-                    if (future || past) return;
-                    onToggle(formatDate(d));
-                  }}
-                  disabled={jiggleMode || future || past}
-                  className={`w-full aspect-square rounded-[2px] transition-all ${
-                    locked ? 'cursor-default' : 'cursor-pointer active:scale-90 hover:brightness-125'
-                  } ${todayCell ? 'ring-1 ring-white/30' : ''}`}
-                  style={{
-                    backgroundColor: completed ? color : partial ? `${color}50` : '#1a1a1a',
-                    opacity: future ? 0.12 : past && !completed && !partial ? 0.25 : 1,
-                  }}
-                >
-                  {completed && target > 1 && (
-                    <span className="text-[6px] font-bold text-white leading-none flex items-center justify-center h-full">
-                      {completions[formatDate(d)]}
-                    </span>
-                  )}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <div className="relative mt-1 h-3" style={{ paddingLeft: '12px' }}>
-        {Array.from({ length: 12 }, (_, m) => {
-          const monthStart = startOfMonth(new Date(year, m, 1));
-          const weekIdx = Math.round((monthStart.getTime() - yearStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-          const monthAbbr = new Date(year, m, 1).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', { month: 'short' });
-          const pct = (weekIdx / 53) * 100;
-          return (
-            <span key={m} className="text-[7px] text-neutral-600 absolute whitespace-nowrap" style={{ left: `${pct}%` }}>
-              {monthAbbr}
-            </span>
-          );
-        })}
-      </div>
+                    {freeze && (
+                      <Snowflake className="w-[7px] h-[7px]" style={{ color }} strokeWidth={3} />
+                    )}
+                    {waiting && canTap && (
+                      <Check
+                        className="w-[7px] h-[7px] animate-pop"
+                        style={{ color, opacity: 0.85 }}
+                        strokeWidth={3}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -401,6 +437,7 @@ export function HabitCard({
   onToggle,
   onEdit,
   onDelete,
+  onNote,
   jiggleMode = false,
   jiggleIndex = 0,
   isDragging = false,
@@ -418,6 +455,14 @@ export function HabitCard({
   const freqType: FrequencyType = habit.frequency_type ?? 'everyday';
   const freqDays: number[] = habit.frequency_days ?? [];
   const streak = calculateFrequencyStreak(habit.completions, habit.target_count, freqType, freqDays);
+  const forgiven = useMemo(
+    () => getForgivenDates(habit.completions, habit.target_count, freqType, freqDays),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [habit.completions, habit.target_count, freqType, JSON.stringify(freqDays)]
+  );
+  const todayKey = formatDate(new Date());
+  const doneToday = isCompletedOn(new Date(), habit.completions, habit.target_count, freqType, freqDays);
+  const hasTodayNote = Boolean(habit.notes?.[todayKey]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -480,11 +525,10 @@ export function HabitCard({
   const weekDays = getWeekDays(now);
   const dayLabels = [t('mon'), t('tue'), t('wed'), t('thu'), t('fri'), t('sat'), t('sun')];
   const monthGrid = getMonthGrid(now);
-  const monthLabel = now.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', { month: 'long' });
+  const monthLabel = now.toLocaleDateString(LOCALES[language], { month: 'long' });
   const currentMonth = now.getMonth();
 
   const year = now.getFullYear();
-  const yearStart = startOfWeek(parseDate(`${year}-01-01`));
 
   const jiggleClass = jiggleMode && !isDragging
     ? `jiggle jiggle-delay-${jiggleIndex % 4}`
@@ -506,28 +550,34 @@ export function HabitCard({
           {habit.emoji}
         </div>
         <div className="min-w-0">
-          <h3 className="text-white font-semibold text-sm truncate">{habit.title}</h3>
+          <h3 className="text-fg font-semibold text-sm truncate">{habit.title}</h3>
           {!compact && habit.description && (
-            <p className="text-neutral-500 text-xs truncate">{habit.description}</p>
+            <p className="text-muted text-xs truncate">{habit.description}</p>
           )}
           {!compact && habit.target_count > 1 && (
-            <p className="text-neutral-600 text-[10px] mt-0.5">{habit.target_count}× / {t('days')}</p>
+            <p className="text-faint text-[10px] mt-0.5">{habit.target_count}× / {t('days')}</p>
           )}
         </div>
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0">
+        {hasTodayNote && (
+          <StickyNote
+            className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}
+            style={{ color: habit.color }}
+          />
+        )}
         <div
           className={`flex items-center gap-0.5 px-1.5 ${compact ? 'py-0.5' : 'py-1'} rounded-lg`}
-          style={{ backgroundColor: streak > 0 ? `${habit.color}1a` : '#1a1a1a' }}
+          style={{ backgroundColor: streak > 0 ? `${habit.color}1a` : 'rgb(var(--c-elev))' }}
         >
           <Flame
-            className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}
-            style={{ color: streak > 0 ? habit.color : '#525252' }}
+            className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} ${doneToday && streak > 0 ? 'animate-flame' : ''}`}
+            style={{ color: streak > 0 ? habit.color : 'rgb(var(--c-muted))' }}
           />
           <span
             className={`${compact ? 'text-xs' : 'text-sm'} font-bold`}
-            style={{ color: streak > 0 ? habit.color : '#525252' }}
+            style={{ color: streak > 0 ? habit.color : 'rgb(var(--c-muted))' }}
           >
             {streak}
           </span>
@@ -537,15 +587,24 @@ export function HabitCard({
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className={`${compact ? 'w-6 h-6' : 'w-7 h-7'} rounded-lg flex items-center justify-center text-neutral-500 hover:text-white hover:bg-[#1a1a1a] transition-colors`}
+              className={`${compact ? 'w-6 h-6' : 'w-7 h-7'} rounded-lg flex items-center justify-center text-muted hover:text-fg hover:bg-elev transition-colors`}
             >
               <MoreVertical className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-8 z-20 w-32 bg-[#1a1a1a] border border-[#262626] rounded-xl shadow-2xl py-1">
+              <div className="absolute right-0 top-8 z-20 w-40 bg-elev border border-line2 rounded-xl shadow-2xl py-1">
+                {onNote && (
+                  <button
+                    onClick={() => { onNote(habit); setMenuOpen(false); }}
+                    className="w-full px-3 py-2 text-left text-sm text-fg2 hover:bg-elev2 flex items-center gap-2 transition-colors"
+                  >
+                    <StickyNote className="w-3.5 h-3.5" />
+                    {t('addNote')}
+                  </button>
+                )}
                 <button
                   onClick={() => { onEdit(habit); setMenuOpen(false); }}
-                  className="w-full px-3 py-2 text-left text-sm text-neutral-300 hover:bg-[#262626] flex items-center gap-2 transition-colors"
+                  className="w-full px-3 py-2 text-left text-sm text-fg2 hover:bg-elev2 flex items-center gap-2 transition-colors"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   {t('edit')}
@@ -574,13 +633,15 @@ export function HabitCard({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onClick={handleCardClick}
-        className={`rounded-2xl bg-[#0d0d0d] border border-[#1a1a1a] p-3 transition-colors hover:border-[#262626] ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
+        className={`rounded-2xl bg-card border border-line p-3 transition-colors hover:border-line2 ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
         style={dragStyle}
       >
         {renderHeader(true)}
-        <span className="text-[10px] text-neutral-400 font-medium block text-center mb-1.5">{monthLabel}</span>
+        <span className="text-[10px] text-sub font-medium block text-center mb-1.5">{monthLabel}</span>
         <MonthView
           weeks={monthGrid}
+          forgiven={forgiven}
+          dayLabels={dayLabels}
           completions={habit.completions}
           target={habit.target_count}
           color={habit.color}
@@ -604,12 +665,13 @@ export function HabitCard({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onClick={handleCardClick}
-        className={`rounded-2xl bg-[#0d0d0d] border border-[#1a1a1a] p-4 transition-colors hover:border-[#262626] ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
+        className={`rounded-2xl bg-card border border-line p-4 transition-colors hover:border-line2 ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
         style={dragStyle}
       >
         {renderHeader(false)}
         <WeekView
           dates={weekDays}
+          forgiven={forgiven}
           completions={habit.completions}
           target={habit.target_count}
           color={habit.color}
@@ -625,14 +687,6 @@ export function HabitCard({
   }
 
   // ── YEAR VIEW ──
-  const yearCells: { d: Date; weekIdx: number; dayIdx: number }[] = [];
-  for (let w = 0; w < 53; w++) {
-    for (let d = 0; d < 7; d++) {
-      const date = addDays(addDays(yearStart, w * 7), d);
-      yearCells.push({ d: date, weekIdx: w, dayIdx: d });
-    }
-  }
-
   return (
     <div
       onPointerDown={handlePointerDown}
@@ -640,13 +694,12 @@ export function HabitCard({
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       onClick={handleCardClick}
-      className={`rounded-2xl bg-[#0d0d0d] border border-[#1a1a1a] p-4 transition-colors hover:border-[#262626] ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
+      className={`rounded-2xl bg-card border border-line p-4 transition-colors hover:border-line2 ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
       style={dragStyle}
     >
       {renderHeader(false)}
       <YearView
-        yearCells={yearCells}
-        yearStart={yearStart}
+        forgiven={forgiven}
         completions={habit.completions}
         target={habit.target_count}
         color={habit.color}
@@ -654,7 +707,6 @@ export function HabitCard({
         frequencyDays={freqDays}
         year={year}
         today={today}
-        dayLabels={dayLabels}
         language={language}
         onToggle={handleToggle}
         jiggleMode={jiggleMode}

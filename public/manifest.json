@@ -1,7 +1,7 @@
 {
-  "name": "Habits - Habit Tracker",
+  "name": "Habits",
   "short_name": "Habits",
-  "description": "Track your daily habits with style",
+  "description": "A simple, beautiful habit tracker",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
@@ -26,5 +26,7 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "id": "/",
+  "scope": "/"
 }

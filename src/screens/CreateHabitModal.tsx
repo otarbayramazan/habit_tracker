@@ -3,7 +3,8 @@ import { useHabits } from '@/hooks/useHabits';
 import { useSettings } from '@/context/SettingsContext';
 import { useT } from '@/lib/i18n';
 import { COLOR_SWATCHES, EMOJI_CHOICES } from '@/lib/constants';
-import { X, Check, Plus, Minus, Smile, Trash2 } from 'lucide-react';
+import { X, Check, Plus, Minus, Smile, Bell } from 'lucide-react';
+import { remindersSupported, requestReminderPermission } from '@/lib/reminders';
 import type { HabitWithCompletions, FrequencyType } from '@/lib/supabase';
 import type { Language } from '@/context/SettingsContext';
 
@@ -13,12 +14,11 @@ type Props = {
   editingHabit?: HabitWithCompletions | null;
 };
 
-const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-// JS getDay: 0=Sun..6=Sat. Our UI starts Monday. Map toggle index 0..6 to getDay values.
+// JS getDay: 0=Sun..6=Sat. Интерфейс начинается с понедельника.
 const WEEKDAY_JS = [1, 2, 3, 4, 5, 6, 0];
 
 export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
-  const { createHabit, updateHabit, deleteHabit } = useHabits();
+  const { createHabit, updateHabit } = useHabits();
   const { language } = useSettings();
   const t = useT(language as Language);
 
@@ -29,6 +29,7 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
   const [targetCount, setTargetCount] = useState(1);
   const [frequencyType, setFrequencyType] = useState<FrequencyType>('everyday');
   const [frequencyDays, setFrequencyDays] = useState<number[]>([]);
+  const [reminderTime, setReminderTime] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
         setTargetCount(editingHabit.target_count);
         setFrequencyType(editingHabit.frequency_type ?? 'everyday');
         setFrequencyDays(editingHabit.frequency_days ?? []);
+        setReminderTime(editingHabit.reminder_time ?? null);
       } else {
         setTitle('');
         setDescription('');
@@ -52,6 +54,7 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
         setTargetCount(1);
         setFrequencyType('everyday');
         setFrequencyDays([]);
+        setReminderTime(null);
       }
       setEmojiOpen(false);
       setError(null);
@@ -63,7 +66,7 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
 
   const handleSave = async () => {
     if (!title.trim()) {
-      setError(language === 'ru' ? 'Введите название' : 'Title is required');
+      setError(t('titleRequired'));
       titleRef.current?.focus();
       return;
     }
@@ -78,6 +81,7 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
         target_count: targetCount,
         frequency_type: frequencyType,
         frequency_days: frequencyDays,
+        reminder_time: reminderTime,
       };
       if (editingHabit) {
         await updateHabit(editingHabit.id, payload);
@@ -92,18 +96,16 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
     }
   };
 
-  const handleDelete = async () => {
-    if (!editingHabit) return;
-    setBusy(true);
-    try {
-      await deleteHabit(editingHabit.id);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('error'));
-    } finally {
-      setBusy(false);
+  const toggleReminder = async () => {
+    if (reminderTime) {
+      setReminderTime(null);
+      return;
     }
+    setReminderTime('09:00');
+    if (remindersSupported) await requestReminderPermission();
   };
+
+  const weekdayLabels = [t('mon'), t('tue'), t('wed'), t('thu'), t('fri'), t('sat'), t('sun')];
 
   const toggleWeekday = (jsDay: number) => {
     setFrequencyDays((prev) =>
@@ -122,23 +124,23 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in" />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade" />
 
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative z-10 w-full max-w-md bg-[#0d0d0d] border border-[#1a1a1a] rounded-t-3xl sm:rounded-3xl max-h-[92vh] overflow-y-auto animate-in slide-in-from-bottom"
+        className="relative z-10 w-full max-w-md bg-card border border-line rounded-t-3xl sm:rounded-3xl max-h-[92vh] overflow-y-auto animate-sheet"
       >
         <div className="sm:hidden flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-neutral-700" />
+          <div className="w-10 h-1 rounded-full bg-line2" />
         </div>
 
         <div className="flex items-center justify-between px-6 pt-4 pb-2">
-          <h2 className="text-lg font-semibold text-white">
+          <h2 className="text-lg font-semibold text-fg">
             {editingHabit ? t('edit') : t('createHabit')}
           </h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-[#1a1a1a] flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
+            className="w-8 h-8 rounded-lg bg-elev flex items-center justify-center text-sub hover:text-fg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -161,11 +163,11 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
                 {emoji}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-white font-semibold text-base truncate">
-                  {title || (language === 'ru' ? 'Название привычки' : 'Habit Title')}
+                <p className="text-fg font-semibold text-base truncate">
+                  {title || t('habitTitle')}
                 </p>
-                <p className="text-neutral-500 text-sm truncate">
-                  {description || (language === 'ru' ? 'Описание...' : 'Description...')}
+                <p className="text-muted text-sm truncate">
+                  {description || t('descPreview')}
                 </p>
               </div>
             </div>
@@ -173,38 +175,38 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
 
           {/* Title */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-neutral-400 uppercase tracking-wide">
+            <label className="text-xs font-medium text-sub uppercase tracking-wide">
               {t('habitTitle')}
             </label>
             <input
               ref={titleRef}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-[#1a1a1a] border border-[#262626] rounded-xl px-4 py-3 text-white text-sm focus:border-neutral-500 focus:outline-none transition-colors"
-              placeholder={language === 'ru' ? 'Напр. Утренняя зарядка' : 'e.g. Morning Workout'}
+              className="w-full bg-elev border border-line2 rounded-xl px-4 py-3 text-fg text-sm focus:border-muted focus:outline-none transition-colors"
+              placeholder={t('titlePlaceholder')}
             />
           </div>
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-neutral-400 uppercase tracking-wide">
+            <label className="text-xs font-medium text-sub uppercase tracking-wide">
               {t('description')}
             </label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-[#1a1a1a] border border-[#262626] rounded-xl px-4 py-3 text-white text-sm focus:border-neutral-500 focus:outline-none transition-colors"
-              placeholder={language === 'ru' ? 'Короткое описание' : 'Brief description'}
+              className="w-full bg-elev border border-line2 rounded-xl px-4 py-3 text-fg text-sm focus:border-muted focus:outline-none transition-colors"
+              placeholder={t('descPlaceholder')}
             />
           </div>
 
           {/* Frequency selector */}
           <div className="space-y-2.5">
-            <label className="text-xs font-medium text-neutral-400 uppercase tracking-wide">
+            <label className="text-xs font-medium text-sub uppercase tracking-wide">
               {t('frequency')}
             </label>
             {/* Segmented control */}
-            <div className="flex gap-1 bg-[#1a1a1a] rounded-xl p-1">
+            <div className="flex gap-1 bg-elev rounded-xl p-1">
               {([
                 { key: 'everyday', label: t('everyday') },
                 { key: 'weekly', label: t('daysOfWeek') },
@@ -218,8 +220,8 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
                   }}
                   className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
                     frequencyType === opt.key
-                      ? 'bg-white text-black'
-                      : 'text-neutral-400 hover:text-white'
+                      ? 'bg-fg text-app'
+                      : 'text-sub hover:text-fg'
                   }`}
                 >
                   {opt.label}
@@ -230,17 +232,17 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
             {/* Days of week pills */}
             {frequencyType === 'weekly' && (
               <div className="flex gap-1.5 pt-1">
-                {WEEKDAY_LABELS.map((label, i) => {
+                {weekdayLabels.map((label, i) => {
                   const jsDay = WEEKDAY_JS[i];
                   const active = frequencyDays.includes(jsDay);
                   return (
                     <button
                       key={i}
                       onClick={() => toggleWeekday(jsDay)}
-                      className={`flex-1 h-10 rounded-lg text-sm font-semibold transition-all ${
+                      className={`flex-1 h-10 rounded-lg text-xs font-semibold transition-all press ${
                         active
                           ? 'text-white'
-                          : 'bg-[#1a1a1a] text-neutral-500 hover:text-neutral-300'
+                          : 'bg-elev text-muted hover:text-fg2'
                       }`}
                       style={active ? { backgroundColor: color } : {}}
                     >
@@ -263,7 +265,7 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
                       className={`h-8 rounded-lg text-xs font-medium transition-all ${
                         active
                           ? 'text-white'
-                          : 'bg-[#1a1a1a] text-neutral-500 hover:text-neutral-300'
+                          : 'bg-elev text-muted hover:text-fg2'
                       }`}
                       style={active ? { backgroundColor: color } : {}}
                     >
@@ -277,7 +279,7 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
 
           {/* Color swatches */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-neutral-400 uppercase tracking-wide">
+            <label className="text-xs font-medium text-sub uppercase tracking-wide">
               {t('color')}
             </label>
             <div className="flex flex-wrap gap-2 items-center">
@@ -286,17 +288,17 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
                   key={c}
                   onClick={() => setColor(c)}
                   className={`w-8 h-8 rounded-lg transition-all ${
-                    color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-[#0d0d0d] scale-110' : 'hover:scale-105'
+                    color === c ? 'ring-2 ring-fg ring-offset-2 ring-offset-card scale-110' : 'hover:scale-105'
                   }`}
                   style={{ backgroundColor: c }}
                 />
               ))}
               <label
-                className="relative w-8 h-8 rounded-lg overflow-hidden cursor-pointer border border-[#262626] flex items-center justify-center hover:scale-105 transition-transform"
+                className="relative w-8 h-8 rounded-lg overflow-hidden cursor-pointer border border-line2 flex items-center justify-center hover:scale-105 transition-transform"
                 style={{
                   background: 'conic-gradient(from 0deg, #ef4444, #f59e0b, #22c55e, #3b82f6, #8b5cf6, #ec4899, #ef4444)',
                 }}
-                title="Custom color"
+                title={t('customColor')}
               >
                 <input
                   type="color"
@@ -311,18 +313,18 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
           {/* Emoji + Target */}
           <div className="flex gap-3">
             <div className="flex-1 space-y-2">
-              <label className="text-xs font-medium text-neutral-400 uppercase tracking-wide">
+              <label className="text-xs font-medium text-sub uppercase tracking-wide">
                 {t('icon')}
               </label>
               <button
                 onClick={() => setEmojiOpen(!emojiOpen)}
-                className="w-full bg-[#1a1a1a] border border-[#262626] rounded-xl px-4 py-3 flex items-center justify-between text-sm text-white focus:border-neutral-500 focus:outline-none transition-colors"
+                className="w-full bg-elev border border-line2 rounded-xl px-4 py-3 flex items-center justify-between text-sm text-fg focus:border-muted focus:outline-none transition-colors"
               >
                 <span className="text-xl">{emoji}</span>
-                <Smile className="w-4 h-4 text-neutral-500" />
+                <Smile className="w-4 h-4 text-muted" />
               </button>
               {emojiOpen && (
-                <div className="absolute z-20 mt-2 p-3 bg-[#1a1a1a] border border-[#262626] rounded-xl shadow-2xl grid grid-cols-8 gap-1 w-72">
+                <div className="absolute z-20 mt-2 p-3 bg-elev border border-line2 rounded-xl shadow-2xl grid grid-cols-8 gap-1 w-72">
                   {EMOJI_CHOICES.map((em) => (
                     <button
                       key={em}
@@ -330,8 +332,8 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
                         setEmoji(em);
                         setEmojiOpen(false);
                       }}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg hover:bg-[#262626] transition-colors ${
-                        emoji === em ? 'bg-[#262626] ring-1 ring-white/30' : ''
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg hover:bg-elev2 transition-colors ${
+                        emoji === em ? 'bg-elev2 ring-1 ring-fg/30' : ''
                       }`}
                     >
                       {em}
@@ -342,27 +344,64 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
             </div>
 
             <div className="w-28 space-y-2">
-              <label className="text-xs font-medium text-neutral-400 uppercase tracking-wide">
+              <label className="text-xs font-medium text-sub uppercase tracking-wide">
                 {t('dailyTarget')}
               </label>
-              <div className="flex items-center bg-[#1a1a1a] border border-[#262626] rounded-xl px-1 py-1.5">
+              <div className="flex items-center bg-elev border border-line2 rounded-xl px-1 py-1.5">
                 <button
                   onClick={() => setTargetCount(Math.max(1, targetCount - 1))}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 hover:text-white hover:bg-[#262626] transition-colors"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-sub hover:text-fg hover:bg-elev2 transition-colors"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="flex-1 text-center text-white font-semibold text-sm">
+                <span className="flex-1 text-center text-fg font-semibold text-sm">
                   {targetCount}
                 </span>
                 <button
                   onClick={() => setTargetCount(Math.min(12, targetCount + 1))}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 hover:text-white hover:bg-[#262626] transition-colors"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-sub hover:text-fg hover:bg-elev2 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Reminder */}
+          <div className="space-y-2.5">
+            <label className="text-xs font-medium text-sub uppercase tracking-wide">
+              {t('reminder')}
+            </label>
+            <div className="flex items-center gap-3 bg-elev border border-line2 rounded-xl px-4 py-3">
+              <Bell className="w-4 h-4 text-muted shrink-0" />
+              <span className="flex-1 text-sm text-fg">
+                {reminderTime ? t('reminderTime') : t('reminderOff')}
+              </span>
+              {reminderTime && (
+                <input
+                  type="time"
+                  value={reminderTime}
+                  onChange={(e) => setReminderTime(e.target.value || null)}
+                  className="bg-elev2 rounded-lg px-2 py-1 text-sm text-fg focus:outline-none"
+                />
+              )}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={Boolean(reminderTime)}
+                onClick={toggleReminder}
+                className="relative w-11 h-6 rounded-full transition-colors shrink-0"
+                style={{ backgroundColor: reminderTime ? color : 'rgb(var(--c-line2))' }}
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                  style={{ transform: reminderTime ? 'translateX(20px)' : 'translateX(0)' }}
+                />
+              </button>
+            </div>
+            {reminderTime && !remindersSupported && (
+              <p className="text-xs text-muted px-1">{t('reminderWebHint')}</p>
+            )}
           </div>
 
           {error && (
@@ -373,18 +412,9 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
 
           {/* Actions */}
           <div className="flex gap-3 pt-1">
-            {editingHabit && (
-              <button
-                onClick={handleDelete}
-                disabled={busy}
-                className="px-4 py-3.5 rounded-xl bg-red-950/50 border border-red-900/40 text-red-400 hover:bg-red-950/70 transition-colors flex items-center gap-2 text-sm font-medium"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
             <button
               onClick={onClose}
-              className="flex-1 py-3.5 rounded-xl bg-[#1a1a1a] text-neutral-300 font-medium text-sm hover:bg-[#222] transition-colors"
+              className="flex-1 py-3.5 rounded-xl bg-elev text-fg2 font-medium text-sm hover:bg-elev2 transition-colors"
             >
               {t('cancel')}
             </button>

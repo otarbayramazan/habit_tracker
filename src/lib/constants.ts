@@ -1,20 +1,21 @@
+// Насыщенная палитра: яркие, хорошо различимые цвета для тёмной и светлой темы.
 export const COLOR_SWATCHES = [
-  '#ef4444', // red
-  '#f97316', // orange
-  '#f59e0b', // amber
-  '#eab308', // yellow
-  '#84cc16', // lime
-  '#22c55e', // green
-  '#10b981', // emerald
-  '#14b8a6', // teal
-  '#06b6d4', // cyan
-  '#3b82f6', // blue
-  '#6366f1', // indigo
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#f43f5e', // rose
-  '#78716c', // stone
-  '#fb7185', // rose-light
+  '#ff1f3d', // red
+  '#ff5a00', // orange
+  '#ff9500', // amber
+  '#ffcc00', // yellow
+  '#8ee000', // lime
+  '#00d65f', // green
+  '#00c4a0', // teal
+  '#00c3ff', // cyan
+  '#0a84ff', // blue
+  '#4a3aff', // indigo
+  '#8a2cff', // violet
+  '#d500f9', // magenta
+  '#ff2d9b', // pink
+  '#ff3b6b', // rose
+  '#a0522d', // brown
+  '#8e8e93', // gray
 ];
 
 export const EMOJI_CHOICES = [

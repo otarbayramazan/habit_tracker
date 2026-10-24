@@ -12,8 +12,8 @@ export function AppShell() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-neutral-700 border-t-neutral-400 rounded-full animate-spin" />
+      <div className="min-h-screen bg-app flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-line2 border-t-sub rounded-full animate-spin" />
       </div>
     );
   }
@@ -22,21 +22,24 @@ export function AppShell() {
     return <AuthScreen />;
   }
 
+  // Все вкладки остаются смонтированными (быстрое переключение); показ запускает анимацию.
+  const pane = (id: Tab) => (tab === id ? 'tab-enter' : 'hidden');
+
   return (
-    <div className="min-h-screen bg-black">
-      <div className={tab === 'week' ? '' : 'hidden'}>
+    <div className="min-h-screen bg-app">
+      <div className={pane('week')}>
         <MainViews view="week" />
       </div>
-      <div className={tab === 'month' ? '' : 'hidden'}>
+      <div className={pane('month')}>
         <MainViews view="month" />
       </div>
-      <div className={tab === 'year' ? '' : 'hidden'}>
+      <div className={pane('year')}>
         <MainViews view="year" />
       </div>
-      <div className={tab === 'statistics' ? '' : 'hidden'}>
+      <div className={pane('statistics')}>
         <StatisticsScreen />
       </div>
-      <div className={tab === 'settings' ? '' : 'hidden'}>
+      <div className={pane('settings')}>
         <SettingsScreen />
       </div>
       <BottomNav active={tab} onChange={setTab} />

@@ -131,20 +131,44 @@ export function countCompletedDays(completions: Record<string, number>, target: 
   return Object.values(completions).filter((c) => c >= target).length;
 }
 
-export function completionRate(completions: Record<string, number>, target: number, startDate: string): number {
-  const start = startDate.includes('T') ? new Date(startDate) : parseDate(startDate);
+// Процент выполнения: только запланированные дни от начала до сегодня.
+// Дни отдыха в знаменатель не попадают. Сегодняшний ещё не выполненный день тоже не считается.
+export function completionRate(
+  completions: Record<string, number>,
+  target: number,
+  startDate: string,
+  frequencyType: 'everyday' | 'weekly' | 'monthly' = 'everyday',
+  frequencyDays: number[] = []
+): number {
+  let start = startDate.includes('T') ? new Date(startDate) : parseDate(startDate);
   if (isNaN(start.getTime())) return 0;
+  start.setHours(0, 0, 0, 0);
+
+  // Если есть отметки раньше даты создания, начинаем с первой отметки.
+  const firstKey = Object.keys(completions).sort()[0];
+  if (firstKey) {
+    const first = parseDate(firstKey);
+    if (first < start) start = first;
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  start.setHours(0, 0, 0, 0);
-  const totalDays = Math.max(1, Math.round((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-  const completed = countCompletedDays(completions, target);
-  const rate = (completed / totalDays) * 100;
-  if (isNaN(rate) || !isFinite(rate)) return 0;
-  return Math.round(Math.min(rate, 100));
-}
+  const todayKey = formatDate(today);
 
-// Monthly completion counts for the year
+  let scheduled = 0;
+  let done = 0;
+  for (let d = new Date(start), i = 0; d <= today && i < 3660; d = addDays(d, 1), i++) {
+    if (!isScheduledOn(d, frequencyType, frequencyDays)) continue;
+    if ((completions[formatDate(d)] ?? 0) >= target) {
+      scheduled++;
+      done++;
+    } else if (formatDate(d) !== todayKey) {
+      scheduled++;
+    }
+  }
+  if (scheduled === 0) return 0;
+  return Math.round((done / scheduled) * 100);
+}
 export function getMonthlyCounts(completions: Record<string, number>, target: number, year: number): number[] {
   const counts = new Array(12).fill(0);
   for (const [dateStr, count] of Object.entries(completions)) {
@@ -246,7 +270,13 @@ export function getChainSegments(
   return segments;
 }
 
-// Frequency-aware streak: count consecutive completed scheduled days up to today
+// Серия с «льготным» днём.
+// Один пропущенный запланированный день серию НЕ обрывает (но и не увеличивает её).
+// Серия сбрасывается, только когда пропущено ДВА запланированных дня подряд.
+// Дни, на которые привычка не запланирована, не учитываются вообще.
+// Сегодняшний ещё не выполненный день пропуском не считается (день не закончился).
+export const MAX_MISSED_IN_ROW = 1;
+
 export function calculateFrequencyStreak(
   completions: Record<string, number>,
   target: number,
@@ -254,23 +284,98 @@ export function calculateFrequencyStreak(
   frequencyDays: number[]
 ): number {
   let streak = 0;
+  let missedInRow = 0;
   let d = new Date();
   d.setHours(0, 0, 0, 0);
+  const todayKey = formatDate(d);
 
-  while (true) {
-    if (isCompletedOn(d, completions, target, frequencyType, frequencyDays)) {
-      streak++;
-      d = addDays(d, -1);
-    } else {
-      // If today is scheduled but not completed, streak is 0
-      // If today is not scheduled, check yesterday etc.
-      if (isScheduledOn(d, frequencyType, frequencyDays)) {
-        break;
+  for (let i = 0; i < 3660; i++) {
+    if (isScheduledOn(d, frequencyType, frequencyDays)) {
+      if ((completions[formatDate(d)] ?? 0) >= target) {
+        streak++;
+        missedInRow = 0;
+      } else if (formatDate(d) !== todayKey) {
+        missedInRow++;
+        if (missedInRow > MAX_MISSED_IN_ROW) break;
       }
-      d = addDays(d, -1);
-      // Safety: don't loop forever
-      if (d.getFullYear() < 2000) break;
     }
+    d = addDays(d, -1);
   }
   return streak;
+}
+
+// Лучшая серия по тем же правилам (один пропуск прощается, два подряд обнуляют).
+export function calculateBestFrequencyStreak(
+  completions: Record<string, number>,
+  target: number,
+  frequencyType: 'everyday' | 'weekly' | 'monthly',
+  frequencyDays: number[]
+): number {
+  const keys = Object.keys(completions)
+    .filter((k) => (completions[k] ?? 0) >= target)
+    .sort();
+  if (keys.length === 0) return 0;
+
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const todayKey = formatDate(end);
+
+  let d = parseDate(keys[0]);
+  let best = 0;
+  let cur = 0;
+  let missedInRow = 0;
+  while (d <= end) {
+    if (isScheduledOn(d, frequencyType, frequencyDays)) {
+      if ((completions[formatDate(d)] ?? 0) >= target) {
+        cur++;
+        missedInRow = 0;
+        best = Math.max(best, cur);
+      } else if (formatDate(d) !== todayKey) {
+        missedInRow++;
+        if (missedInRow > MAX_MISSED_IN_ROW) cur = 0;
+      }
+    }
+    d = addDays(d, 1);
+  }
+  return best;
+}
+
+// Прощённые дни: одиночный пропуск запланированного дня, который не оборвал серию.
+// Условия: до него был выполненный день, а следом либо выполненный день,
+// либо сегодняшний ещё не закрытый день, либо ничего (запланированных дней больше не было).
+// Два пропуска подряд не прощаются, поэтому в таком случае снежинки нет.
+export function getForgivenDates(
+  completions: Record<string, number>,
+  target: number,
+  frequencyType: 'everyday' | 'weekly' | 'monthly',
+  frequencyDays: number[]
+): Set<string> {
+  const result = new Set<string>();
+  const keys = Object.keys(completions)
+    .filter((k) => (completions[k] ?? 0) >= target)
+    .sort();
+  if (keys.length === 0) return result;
+
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const todayKey = formatDate(end);
+
+  const days: { key: string; done: boolean }[] = [];
+  let d = parseDate(keys[0]);
+  while (d <= end) {
+    if (isScheduledOn(d, frequencyType, frequencyDays)) {
+      const key = formatDate(d);
+      days.push({ key, done: (completions[key] ?? 0) >= target });
+    }
+    d = addDays(d, 1);
+  }
+
+  for (let i = 1; i < days.length; i++) {
+    const cur = days[i];
+    if (cur.done || cur.key === todayKey) continue;
+    if (!days[i - 1].done) continue;
+    const next = days[i + 1];
+    if (!next || next.done || next.key === todayKey) result.add(cur.key);
+  }
+  return result;
 }

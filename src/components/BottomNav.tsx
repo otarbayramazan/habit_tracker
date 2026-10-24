@@ -25,9 +25,10 @@ export function BottomNav({ active, onChange }: Props) {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 flex justify-center pointer-events-none">
       <div
-        className="pointer-events-auto mb-4 mx-4 flex items-center gap-1 rounded-2xl border border-white/10 px-2 py-2 backdrop-blur-xl shadow-2xl"
+        className="pointer-events-auto mx-4 flex items-center gap-1 rounded-2xl border border-fg/10 px-2 py-2 backdrop-blur-xl shadow-2xl"
         style={{
-          backgroundColor: 'rgba(13, 13, 13, 0.8)',
+          backgroundColor: 'rgb(var(--c-card) / 0.85)',
+          marginBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
         }}
       >
         {tabs.map((tab) => {
@@ -36,22 +37,22 @@ export function BottomNav({ active, onChange }: Props) {
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
-              className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-[56px] ${
+              className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all press min-w-[56px] ${
                 isActive
-                  ? 'bg-white/10'
-                  : 'hover:bg-white/5'
+                  ? 'bg-fg/10'
+                  : 'hover:bg-fg/5'
               }`}
             >
               <span
                 className={`transition-colors ${
-                  isActive ? 'text-white' : 'text-neutral-500'
+                  isActive ? 'text-fg' : 'text-muted'
                 }`}
               >
                 {tab.icon}
               </span>
               <span
                 className={`text-[10px] font-medium transition-colors ${
-                  isActive ? 'text-white' : 'text-neutral-500'
+                  isActive ? 'text-fg' : 'text-muted'
                 }`}
               >
                 {tab.label}
