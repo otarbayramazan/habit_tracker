@@ -18,6 +18,14 @@
   --c-muted: 115 115 115;
   --c-faint: 82 82 82;
   --c-rest: 20 20 20;
+  /* Стекло */
+  --glass-bg: 18 18 22;
+  --glass-alpha: 0.55;
+  --glass-edge: 255 255 255;
+  --glass-edge-alpha: 0.09;
+  --glass-shine-alpha: 0.14;
+  --glass-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  --blob-opacity: 0.2;
 }
 
 :root[data-theme='light'] {
@@ -34,6 +42,14 @@
   --c-muted: 113 113 122;
   --c-faint: 161 161 170;
   --c-rest: 236 236 240;
+  /* Стекло */
+  --glass-bg: 255 255 255;
+  --glass-alpha: 0.62;
+  --glass-edge: 255 255 255;
+  --glass-edge-alpha: 0.75;
+  --glass-shine-alpha: 0.9;
+  --glass-shadow: 0 10px 30px rgb(30 30 60 / 0.08);
+  --blob-opacity: 0.38;
 }
 
 html,
@@ -53,6 +69,76 @@ body {
 /* Безопасные зоны (вырез камеры, жестовая панель) */
 #root {
   padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* ── Стекло (в духе Liquid Glass): полупрозрачная подложка, размытие фона, блик по верхнему краю ── */
+.glass {
+  background-color: rgb(var(--glass-bg) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: blur(22px) saturate(170%);
+  border: 1px solid rgb(var(--glass-edge) / var(--glass-edge-alpha));
+  box-shadow:
+    inset 0 1px 0 rgb(var(--glass-edge) / var(--glass-shine-alpha)),
+    var(--glass-shadow);
+}
+
+/* Более плотное стекло для панелей поверх контента (нижняя панель, окна, меню) */
+.glass-strong {
+  background-color: rgb(var(--glass-bg) / calc(var(--glass-alpha) + 0.2));
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgb(var(--glass-edge) / var(--glass-edge-alpha));
+  box-shadow:
+    inset 0 1px 0 rgb(var(--glass-edge) / var(--glass-shine-alpha)),
+    0 16px 40px rgb(0 0 0 / 0.3);
+}
+
+/* Если браузер не умеет размывать фон — делаем подложку почти непрозрачной */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .glass-strong {
+    background-color: rgb(var(--c-card) / 0.96);
+  }
+}
+
+/* ── Нижняя панель прячется, пока открыто любое окно ── */
+.bottom-nav {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+}
+.modal-open .bottom-nav {
+  transform: translateY(120%);
+  opacity: 0;
+}
+.modal-open .bottom-nav > * {
+  pointer-events: none;
+}
+
+/* ── Скругления ──
+   Клетки: радиус в процентах от размера, поэтому и крупные, и мелкие клетки одинаково мягкие. */
+.cell-r {
+  border-radius: 30%;
+}
+
+/* ── Фон: мягкие цветные пятна ── */
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: var(--blob-opacity);
+  will-change: transform;
+  animation: blob-drift 26s ease-in-out infinite alternate;
+}
+
+/* Тёмная тема: чистый чёрный (OLED), свечение только сверху */
+:root[data-theme='dark'] .blob-bottom,
+:root:not([data-theme]) .blob-bottom {
+  display: none;
+}
+
+@keyframes blob-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6vw, -4vh) scale(1.12); }
+  100% { transform: translate(-5vw, 5vh) scale(0.94); }
 }
 
 /* ── Анимации ── */

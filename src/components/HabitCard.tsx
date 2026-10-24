@@ -8,6 +8,7 @@ import {
   parseDate, startOfMonth, isScheduledOn, isCompletedOn,
   calculateFrequencyStreak, getForgivenDates,
 } from '@/lib/dateUtils';
+import { ProgressRing } from '@/components/ProgressRing';
 
 type ViewType = 'week' | 'month' | 'year';
 
@@ -27,7 +28,7 @@ type Props = {
 
 // ── День отдыха: нейтральная клетка с чётко читаемой луной (цвет привычки не используется) ──
 function RestDayBox({ size }: { size: 'sm' | 'md' }) {
-  const dim = size === 'sm' ? 'w-full aspect-square rounded-[3px]' : 'w-full aspect-square rounded-md';
+  const dim = 'w-full aspect-square cell-r';
   return (
     <div
       className={`${dim} flex items-center justify-center bg-elev border border-line2`}
@@ -68,7 +69,7 @@ function SquareCell({
   const completed = count >= target;
   const partial = count > 0 && count < target;
   const isMulti = target > 1;
-  const dim = size === 'sm' ? 'w-full aspect-square rounded-[3px]' : 'w-full aspect-square rounded-md';
+  const dim = 'w-full aspect-square cell-r';
   const isLocked = locked || isPast || isFuture;
   const showFreeze = forgiven && !completed && !partial;
 
@@ -263,59 +264,64 @@ function MonthView({
   const yesterdayKey = formatDate(addDays(today, -1));
   const isPast = (d: Date) => d < today && formatDate(d) !== yesterdayKey;
 
+  const rows = weeks.length;
+  const GAP = 2; // px
+
+  // Сетка вписывается в свободное место квадратной карточки:
+  // ширина = меньшее из (вся ширина) и (то, что позволяет высота при квадратных клетках).
   return (
-    <div className="relative">
-      {/* Day labels — always 7 columns */}
-      <div className="grid grid-cols-7 gap-0.5 mb-1">
-        {dayLabels.map((l, i) => (
-          <span key={i} className="text-[8px] text-faint text-center font-medium">{l.slice(0, 2)}</span>
-        ))}
+    <div className="flex-1 min-h-0 flex items-end justify-center" style={{ containerType: 'size' }}>
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+          gap: GAP,
+          width: `min(100cqw, calc((100cqh - ${(rows - 1) * GAP}px) / ${rows} * 7 + ${6 * GAP}px))`,
+        }}
+      >
+        {weeks.flat().map((d, i) => {
+          const otherMonth = d.getMonth() !== currentMonth;
+          const scheduled = isScheduledOn(d, frequencyType, frequencyDays);
+          const locked = jiggleMode || isFuture(d) || isPast(d);
+
+          // Дни соседних месяцев — пустое место для выравнивания календаря
+          if (otherMonth) return <div key={i} className="w-full aspect-square" />;
+
+          return scheduled ? (
+            <SquareCell
+              key={i}
+              count={completions[formatDate(d)] ?? 0}
+              target={target}
+              color={color}
+              isToday={isToday(d)}
+              isPast={isPast(d)}
+              isFuture={isFuture(d)}
+              size="sm"
+              forgiven={forgiven.has(formatDate(d))}
+              onClick={() => {
+                if (jiggleMode || isFuture(d) || isPast(d)) return;
+                onToggle(formatDate(d));
+              }}
+              locked={locked}
+            />
+          ) : (
+            <RestDayBox key={i} size="sm" />
+          );
+        })}
       </div>
-
-      {/* Grid — always 7 columns per row */}
-      {weeks.map((week, wi) => (
-        <div key={wi} className="grid grid-cols-7 gap-0.5 mb-0.5">
-          {week.map((d, di) => {
-            const otherMonth = d.getMonth() !== currentMonth;
-            const scheduled = isScheduledOn(d, frequencyType, frequencyDays);
-            const locked = jiggleMode || isFuture(d) || isPast(d);
-
-            // Other-month days: transparent placeholder for calendar alignment
-            if (otherMonth) {
-              return <div key={di} className="w-full aspect-square" />;
-            }
-
-            // Same-month: scheduled → SquareCell, rest day → RestDayBox
-            return scheduled ? (
-              <SquareCell
-                key={di}
-                count={completions[formatDate(d)] ?? 0}
-                target={target}
-                color={color}
-                isToday={isToday(d)}
-                isPast={isPast(d)}
-                isFuture={isFuture(d)}
-                size="sm"
-                forgiven={forgiven.has(formatDate(d))}
-                onClick={() => {
-                  if (jiggleMode || isFuture(d) || isPast(d)) return;
-                  onToggle(formatDate(d));
-                }}
-                locked={locked}
-              />
-            ) : (
-              <RestDayBox key={di} size="sm" />
-            );
-          })}
-        </div>
-      ))}
     </div>
   );
 }
 
-// ── YEAR VIEW: 12 мини-календарей ──
+// ── YEAR VIEW: ровный прямоугольник последних дней ──
+// Фиксированная сетка 6 × 26 на любом устройстве (156 дней ≈ 5 месяцев), без неполных рядов.
+// Дни идут подряд слева направо и сверху вниз; сегодня всегда в правом нижнем углу.
+// Полная история — во вкладке «Статистика».
+const YEAR_VIEW_ROWS = 6;
+const YEAR_VIEW_COLS = 26;
+const YEAR_VIEW_DAYS = YEAR_VIEW_ROWS * YEAR_VIEW_COLS;
+
 function YearView({
-  year,
   forgiven,
   completions,
   target,
@@ -323,7 +329,6 @@ function YearView({
   frequencyType,
   frequencyDays,
   today,
-  language,
   onToggle,
   jiggleMode,
 }: {
@@ -342,89 +347,69 @@ function YearView({
   const todayKey = formatDate(today);
   const yesterdayKey = formatDate(addDays(today, -1));
 
+  // От самого раннего дня к сегодняшнему
+  const days = useMemo(() => {
+    const out: Date[] = [];
+    for (let i = YEAR_VIEW_DAYS - 1; i >= 0; i--) out.push(addDays(today, -i));
+    return out;
+  }, [todayKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-3 gap-y-4">
-      {Array.from({ length: 12 }, (_, m) => {
-        const first = new Date(year, m, 1);
-        const weeks = getMonthGrid(first);
-        const title = first.toLocaleDateString(LOCALES[language], { month: 'long' });
-        const isCurrent = year === today.getFullYear() && m === today.getMonth();
+    <div
+      className="grid gap-[3px]"
+      style={{ gridTemplateColumns: `repeat(${YEAR_VIEW_COLS}, minmax(0, 1fr))` }}
+    >
+      {days.map((d) => {
+        const key = formatDate(d);
+        const future = d > today;
+        const isTodayCell = key === todayKey;
+        const scheduled = isScheduledOn(d, frequencyType, frequencyDays);
+
+        // День отдыха: нейтральная клетка с точкой
+        if (!scheduled) {
+          return (
+            <div
+              key={key}
+              className={`aspect-square cell-r bg-elev flex items-center justify-center ${
+                isTodayCell ? 'ring-1 ring-fg/40' : ''
+              }`}
+              style={{ opacity: future ? 0.35 : 1 }}
+            >
+              <span
+                className="w-[2px] h-[2px] rounded-full"
+                style={{ backgroundColor: 'rgb(var(--c-muted))' }}
+              />
+            </div>
+          );
+        }
+
+        const count = completions[key] ?? 0;
+        const completed = count >= target;
+        const partial = count > 0 && count < target;
+        const freeze = forgiven.has(key) && !completed && !partial;
+        const canTap = (isTodayCell || key === yesterdayKey) && !jiggleMode;
+        const waiting = isTodayCell && !completed && !partial;
 
         return (
-          <div key={m} className="min-w-0">
-            <p
-              className={`text-[11px] font-medium mb-1.5 truncate capitalize ${
-                isCurrent ? 'text-fg' : 'text-muted'
-              }`}
-            >
-              {title}
-            </p>
-            <div className="grid grid-cols-7 gap-[2px]">
-              {weeks.flat().map((d, i) => {
-                if (d.getMonth() !== m) return <div key={i} className="aspect-square" />;
-
-                const key = formatDate(d);
-                const future = d > today;
-                const isTodayCell = key === todayKey;
-                const scheduled = isScheduledOn(d, frequencyType, frequencyDays);
-
-                // День отдыха: нейтральная клетка с точкой (значок на такой клетке не помещается)
-                if (!scheduled) {
-                  return (
-                    <div
-                      key={i}
-                      className="aspect-square rounded-[3px] bg-elev flex items-center justify-center"
-                      style={{ opacity: future ? 0.5 : 1 }}
-                    >
-                      <span
-                        className="w-[3px] h-[3px] rounded-full"
-                        style={{ backgroundColor: 'rgb(var(--c-muted))' }}
-                      />
-                    </div>
-                  );
-                }
-
-                const count = completions[key] ?? 0;
-                const completed = count >= target;
-                const partial = count > 0 && count < target;
-                const freeze = forgiven.has(key) && !completed && !partial;
-                const canTap = (isTodayCell || key === yesterdayKey) && !jiggleMode;
-                const waiting = isTodayCell && !completed && !partial;
-
-                return (
-                  <button
-                    key={i}
-                    disabled={!canTap}
-                    onClick={() => onToggle(key)}
-                    className={`aspect-square rounded-[3px] flex items-center justify-center transition-all ${
-                      canTap ? 'cursor-pointer active:scale-90' : 'cursor-default'
-                    } ${isTodayCell ? 'ring-1 ring-fg/40' : ''}`}
-                    style={{
-                      backgroundColor: completed
-                        ? color
-                        : partial
-                          ? `${color}59`
-                          : freeze || waiting
-                            ? `${color}33`
-                            : 'rgb(var(--c-elev))',
-                      opacity: future ? 0.5 : 1,
-                    }}
-                  >
-                    {freeze && (
-                      <Snowflake className="w-[7px] h-[7px]" style={{ color }} strokeWidth={3} />
-                    )}
-                    {waiting && canTap && (
-                      <Check
-                        className="w-[7px] h-[7px] animate-pop"
-                        style={{ color, opacity: 0.85 }}
-                        strokeWidth={3}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <button
+            key={key}
+            disabled={!canTap}
+            onClick={() => onToggle(key)}
+            aria-label={key}
+            className={`aspect-square cell-r transition-all ${
+              canTap ? 'cursor-pointer active:scale-90' : 'cursor-default'
+            } ${isTodayCell ? 'ring-1 ring-fg/50' : ''}`}
+            style={{
+              backgroundColor: completed
+                ? color
+                : partial
+                  ? `${color}66`
+                  : freeze || waiting
+                    ? `${color}38`
+                    : 'rgb(var(--c-elev))',
+              opacity: future ? 0.35 : 1,
+            }}
+          />
         );
       })}
     </div>
@@ -542,14 +527,25 @@ export function HabitCard({
 
   const renderHeader = (compact: boolean) => (
     <div className={`flex items-start ${compact ? 'mb-2' : 'mb-4'}`}>
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <div
-          className={`${compact ? 'w-8 h-8 text-base' : 'w-11 h-11 text-xl'} rounded-xl flex items-center justify-center shrink-0`}
-          style={{ backgroundColor: `${habit.color}1a` }}
-        >
-          {habit.emoji}
-        </div>
-        <div className="min-w-0">
+      <div className={`flex items-center ${compact ? 'gap-2' : 'gap-2.5'} min-w-0 flex-1`}>
+        <ProgressRing
+          emoji={habit.emoji}
+          color={habit.color}
+          count={habit.completions[todayKey] ?? 0}
+          target={habit.target_count}
+          size={compact ? 32 : 46}
+        />
+        {compact && (
+          <div className="min-w-0 flex-1">
+            <h3
+              className="text-fg font-semibold text-[12px] leading-tight truncate"
+              title={habit.title}
+            >
+              {habit.title}
+            </h3>
+          </div>
+        )}
+        <div className={`min-w-0 ${compact ? 'hidden' : ''}`}>
           <h3 className="text-fg font-semibold text-sm truncate">{habit.title}</h3>
           {!compact && habit.description && (
             <p className="text-muted text-xs truncate">{habit.description}</p>
@@ -560,15 +556,15 @@ export function HabitCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
-        {hasTodayNote && (
+      <div className={`flex items-center ${compact ? 'gap-0.5 -mr-1' : 'gap-1.5'} shrink-0`}>
+        {hasTodayNote && !compact && (
           <StickyNote
             className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}
             style={{ color: habit.color }}
           />
         )}
         <div
-          className={`flex items-center gap-0.5 px-1.5 ${compact ? 'py-0.5' : 'py-1'} rounded-lg`}
+          className={`flex items-center gap-0.5 ${compact ? 'px-1 py-0.5 rounded-md' : 'px-1.5 py-1 rounded-lg'}`}
           style={{ backgroundColor: streak > 0 ? `${habit.color}1a` : 'rgb(var(--c-elev))' }}
         >
           <Flame
@@ -576,7 +572,7 @@ export function HabitCard({
             style={{ color: streak > 0 ? habit.color : 'rgb(var(--c-muted))' }}
           />
           <span
-            className={`${compact ? 'text-xs' : 'text-sm'} font-bold`}
+            className={`${compact ? 'text-[11px]' : 'text-sm'} font-bold`}
             style={{ color: streak > 0 ? habit.color : 'rgb(var(--c-muted))' }}
           >
             {streak}
@@ -587,12 +583,12 @@ export function HabitCard({
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className={`${compact ? 'w-6 h-6' : 'w-7 h-7'} rounded-lg flex items-center justify-center text-muted hover:text-fg hover:bg-elev transition-colors`}
+              className={`${compact ? 'w-5 h-6' : 'w-7 h-7'} rounded-lg flex items-center justify-center text-muted hover:text-fg hover:bg-elev transition-colors`}
             >
               <MoreVertical className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-8 z-20 w-40 bg-elev border border-line2 rounded-xl shadow-2xl py-1">
+              <div className="absolute right-0 top-8 z-20 w-40 glass-strong rounded-xl py-1">
                 {onNote && (
                   <button
                     onClick={() => { onNote(habit); setMenuOpen(false); }}
@@ -633,11 +629,10 @@ export function HabitCard({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onClick={handleCardClick}
-        className={`rounded-2xl bg-card border border-line p-3 transition-colors hover:border-line2 ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
+        className={`aspect-square flex flex-col rounded-[22px] glass p-3 transition-colors ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
         style={dragStyle}
       >
         {renderHeader(true)}
-        <span className="text-[10px] text-sub font-medium block text-center mb-1.5">{monthLabel}</span>
         <MonthView
           weeks={monthGrid}
           forgiven={forgiven}
@@ -665,7 +660,7 @@ export function HabitCard({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onClick={handleCardClick}
-        className={`rounded-2xl bg-card border border-line p-4 transition-colors hover:border-line2 ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
+        className={`rounded-[26px] glass p-4 transition-colors ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
         style={dragStyle}
       >
         {renderHeader(false)}
@@ -694,7 +689,7 @@ export function HabitCard({
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       onClick={handleCardClick}
-      className={`rounded-2xl bg-card border border-line p-4 transition-colors hover:border-line2 ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
+      className={`rounded-[26px] glass p-4 transition-colors ${jiggleClass} ${jiggleMode ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
       style={dragStyle}
     >
       {renderHeader(false)}

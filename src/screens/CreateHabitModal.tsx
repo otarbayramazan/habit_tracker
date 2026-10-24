@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useHabits } from '@/hooks/useHabits';
+import { useHideNav } from '@/hooks/useHideNav';
 import { useSettings } from '@/context/SettingsContext';
 import { useT } from '@/lib/i18n';
 import { COLOR_SWATCHES, EMOJI_CHOICES } from '@/lib/constants';
@@ -61,6 +62,8 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
       setTimeout(() => titleRef.current?.focus(), 100);
     }
   }, [open, editingHabit]);
+
+  useHideNav(open);
 
   if (!open) return null;
 
@@ -124,11 +127,11 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade" />
 
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative z-10 w-full max-w-md bg-card border border-line rounded-t-3xl sm:rounded-3xl max-h-[92vh] overflow-y-auto animate-sheet"
+        className="relative z-10 w-full max-w-md glass-strong rounded-t-3xl sm:rounded-3xl max-h-[92vh] overflow-y-auto animate-sheet"
       >
         <div className="sm:hidden flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-line2" />

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, X, Check } from 'lucide-react';
 import { useHabits } from '@/context/HabitsContext';
+import { useHideNav } from '@/hooks/useHideNav';
 import { useSettings } from '@/context/SettingsContext';
 import { LOCALES, useT } from '@/lib/i18n';
 import { addDays, formatDate, parseDate } from '@/lib/dateUtils';
@@ -45,6 +46,8 @@ export function NoteSheet({ habit, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [habit?.id, date]);
 
+  useHideNav(Boolean(habit));
+
   if (!habit || !live) return null;
 
   const isToday = date === todayKey;
@@ -75,10 +78,10 @@ export function NoteSheet({ habit, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade" />
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative z-10 w-full max-w-md bg-card border border-line rounded-t-3xl sm:rounded-3xl p-6 animate-sheet"
+        className="relative z-10 w-full max-w-md glass-strong rounded-t-3xl sm:rounded-3xl p-6 animate-sheet"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)' }}
       >
         <div className="flex items-center gap-3 mb-4">

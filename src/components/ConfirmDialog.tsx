@@ -1,4 +1,5 @@
 import { Trash2 } from 'lucide-react';
+import { useHideNav } from '@/hooks/useHideNav';
 
 type Props = {
   open: boolean;
@@ -21,13 +22,15 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: Props) {
+  useHideNav(open);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center px-6" onClick={onCancel}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade" />
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-sm rounded-3xl bg-card border border-line p-6 animate-rise"
+        className="relative w-full max-w-sm rounded-3xl glass-strong p-6 animate-rise"
       >
         <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center mb-4">
           <Trash2 className="w-6 h-6 text-red-400" />

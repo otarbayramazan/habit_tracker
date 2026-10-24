@@ -75,7 +75,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div className="mb-6">
       <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 px-1">{title}</h2>
-      <div className="rounded-2xl bg-card border border-line divide-y divide-line overflow-hidden">
+      <div className="rounded-[26px] glass divide-y divide-line overflow-hidden">
         {children}
       </div>
     </div>

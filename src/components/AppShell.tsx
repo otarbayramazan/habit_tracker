@@ -5,6 +5,7 @@ import { MainViews } from '@/screens/MainViews';
 import { StatisticsScreen } from '@/screens/StatisticsScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { BottomNav, type Tab } from '@/components/BottomNav';
+import { GlassBackground } from '@/components/GlassBackground';
 
 export function AppShell() {
   const { user, loading } = useAuth();
@@ -26,7 +27,8 @@ export function AppShell() {
   const pane = (id: Tab) => (tab === id ? 'tab-enter' : 'hidden');
 
   return (
-    <div className="min-h-screen bg-app">
+    <div className="relative isolate min-h-screen">
+      <GlassBackground />
       <div className={pane('week')}>
         <MainViews view="week" />
       </div>

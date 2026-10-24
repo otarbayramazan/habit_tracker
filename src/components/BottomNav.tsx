@@ -23,11 +23,10 @@ export function BottomNav({ active, onChange }: Props) {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 flex justify-center pointer-events-none">
+    <div className="bottom-nav fixed bottom-0 left-0 right-0 z-40 flex justify-center pointer-events-none">
       <div
-        className="pointer-events-auto mx-4 flex items-center gap-1 rounded-2xl border border-fg/10 px-2 py-2 backdrop-blur-xl shadow-2xl"
+        className="pointer-events-auto mx-4 flex items-center gap-1 rounded-[28px] glass-strong px-2 py-2"
         style={{
-          backgroundColor: 'rgb(var(--c-card) / 0.85)',
           marginBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
         }}
       >
@@ -37,7 +36,7 @@ export function BottomNav({ active, onChange }: Props) {
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
-              className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all press min-w-[56px] ${
+              className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-[20px] transition-all press min-w-[56px] ${
                 isActive
                   ? 'bg-fg/10'
                   : 'hover:bg-fg/5'

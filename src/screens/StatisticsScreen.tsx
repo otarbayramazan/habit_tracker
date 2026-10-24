@@ -42,7 +42,7 @@ export function StatisticsScreen() {
   if (habits.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-        <div className="w-20 h-20 rounded-3xl bg-card border border-line flex items-center justify-center mb-4">
+        <div className="w-20 h-20 rounded-3xl glass flex items-center justify-center mb-4">
           <BarChart3 className="w-8 h-8 text-faint" />
         </div>
         <h3 className="text-fg font-semibold text-base">{t('noHabits')}</h3>
@@ -80,7 +80,7 @@ export function StatisticsScreen() {
       <div className="relative mb-5">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="w-full bg-card border border-line rounded-2xl px-4 py-3.5 flex items-center justify-between hover:border-line2 transition-colors"
+          className="w-full glass rounded-2xl px-4 py-3.5 flex items-center justify-between transition-colors"
         >
           <div className="flex items-center gap-3">
             <div
@@ -94,7 +94,7 @@ export function StatisticsScreen() {
           <ChevronDown className={`w-4 h-4 text-muted transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
         </button>
         {dropdownOpen && (
-          <div className="absolute z-30 top-full mt-1 w-full bg-elev border border-line2 rounded-2xl shadow-2xl py-1 max-h-64 overflow-y-auto">
+          <div className="absolute z-30 top-full mt-1 w-full glass-strong rounded-2xl py-1 max-h-64 overflow-y-auto">
             {habits.map((h) => (
               <button
                 key={h.id}
@@ -177,8 +177,7 @@ function MetricCard({
 }) {
   return (
     <div
-      className="rounded-2xl bg-card border p-4 transition-colors"
-      style={{ borderColor: `${color}22` }}
+      className="rounded-[26px] glass p-4 transition-colors"
     >
       <div className="flex items-center gap-2 mb-3">
         <div
@@ -221,25 +220,28 @@ function YearHeatmap({
   );
   const dayLabels = [t('mon'), t('tue'), t('wed'), t('thu'), t('fri'), t('sat'), t('sun')];
 
-  // Год делится на 2 полугодия (≈27 колонок недель каждое), блоки идут друг под другом:
-  // клетки крупнее прежних, и всё помещается по ширине без прокрутки.
-  const quarters = [0, 1].map((q) => {
-    const qStart = new Date(year, q * 6, 1);
-    const qEnd = new Date(year, q * 6 + 6, 0);
-    const gridStart = startOfWeek(qStart);
-    const spanDays = Math.round((qEnd.getTime() - gridStart.getTime()) / 86400000);
-    const weeks = Math.floor(spanDays / 7) + 1;
-    const monthCols = [0, 1, 2, 3, 4, 5].map((k) => {
-      const first = new Date(year, q * 6 + k, 1);
-      const col = Math.floor(Math.round((first.getTime() - gridStart.getTime()) / 86400000) / 7);
-      return {
-        col,
-        label: first.toLocaleDateString(LOCALES[language], { month: 'short' }).replace('.', ''),
-      };
+  // Последние полгода: 26 недель, заканчивая текущей неделей (сегодня — в последней колонке).
+  const WEEKS = 26;
+  const gridStart = addDays(startOfWeek(today), -(WEEKS - 1) * 7);
+  // Подпись месяца ставим над колонкой, в которой месяц начинается (и над первой колонкой).
+  const monthCols: { col: number; label: string }[] = [];
+  for (let col = 0; col < WEEKS; col++) {
+    const weekStart = addDays(gridStart, col * 7);
+    const weekEnd = addDays(weekStart, 6);
+    let first: Date | null = null;
+    if (weekEnd.getDate() <= 7) {
+      // В этой неделе начинается новый месяц
+      first = new Date(weekEnd.getFullYear(), weekEnd.getMonth(), 1);
+    } else if (col === 0 && weekStart.getDate() <= 21) {
+      // Первая колонка: подписываем текущий месяц, если до следующего ещё далеко
+      first = weekStart;
+    }
+    if (!first) continue;
+    monthCols.push({
+      col,
+      label: first.toLocaleDateString(LOCALES[language], { month: 'short' }).replace('.', ''),
     });
-    return { q, qStart, qEnd, gridStart, weeks, monthCols };
-  });
-  const maxWeeks = Math.max(...quarters.map((q) => q.weeks));
+  }
 
   const cellStyle = (d: Date): React.CSSProperties | null => {
     const key = formatDate(d);
@@ -256,91 +258,85 @@ function YearHeatmap({
   };
 
   return (
-    <div className="rounded-2xl bg-card border p-4" style={{ borderColor: `${color}22` }}>
-      <div className="space-y-4">
-        {quarters.map(({ q, qStart, qEnd, gridStart, monthCols }) => (
-          <div key={q} className="flex gap-1.5">
-            {/* Подписи дней недели */}
-            <div className="flex flex-col gap-[2px] pt-[18px] shrink-0 w-5">
-              {dayLabels.map((l, i) => (
-                <div key={i} className="flex-1 flex items-center">
-                  <span className="text-[9px] leading-none text-faint">
-                    {i % 2 === 0 ? l.slice(0, 2) : ''}
-                  </span>
-                </div>
-              ))}
+    <div className="rounded-[26px] glass p-4">
+      <div className="flex gap-1.5">
+        {/* Подписи дней недели */}
+        <div className="flex flex-col gap-[3px] pt-[18px] shrink-0 w-5">
+          {dayLabels.map((l, i) => (
+            <div key={i} className="flex-1 flex items-center">
+              <span className="text-[9px] leading-none text-faint">
+                {i % 2 === 0 ? l.slice(0, 2) : ''}
+              </span>
             </div>
+          ))}
+        </div>
 
-            <div className="flex-1 min-w-0">
-              {/* Подписи месяцев над колонкой, где месяц начинается */}
-              <div
-                className="grid gap-[2px] h-[14px] mb-1"
-                style={{ gridTemplateColumns: `repeat(${maxWeeks}, minmax(0, 1fr))` }}
+        <div className="flex-1 min-w-0">
+          {/* Подписи месяцев над колонкой, где месяц начинается */}
+          <div
+            className="grid gap-[3px] h-[14px] mb-1"
+            style={{ gridTemplateColumns: `repeat(${WEEKS}, minmax(0, 1fr))` }}
+          >
+            {monthCols.map(({ col, label }) => (
+              <span
+                key={col}
+                className="text-[10px] leading-none text-muted capitalize whitespace-nowrap"
+                style={{ gridColumn: `${col + 1} / span 4` }}
               >
-                {monthCols.map(({ col, label }) => (
-                  <span
-                    key={col}
-                    className="text-[10px] leading-none text-muted capitalize whitespace-nowrap"
-                    style={{ gridColumn: `${col + 1} / span 4` }}
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
-
-              {/* Клетки: колонки — недели, строки — дни недели */}
-              <div
-                className="grid gap-[2px]"
-                style={{
-                  gridTemplateColumns: `repeat(${maxWeeks}, minmax(0, 1fr))`,
-                  gridAutoFlow: 'column',
-                  gridTemplateRows: 'repeat(7, auto)',
-                }}
-              >
-                {Array.from({ length: maxWeeks * 7 }, (_, idx) => {
-                  const d = addDays(gridStart, idx);
-                  const inQuarter = d >= qStart && d <= qEnd;
-                  if (!inQuarter) return <div key={idx} className="aspect-square" />;
-                  const style = cellStyle(d);
-                  const isTodayCell = formatDate(d) === todayKey;
-                  if (!style) {
-                    return (
-                      <div
-                        key={idx}
-                        className={`aspect-square rounded-[2px] bg-elev flex items-center justify-center ${
-                          isTodayCell ? 'ring-1 ring-fg/40' : ''
-                        }`}
-                        style={{ opacity: d > today ? 0.45 : 1 }}
-                      >
-                        <span
-                          className="w-[2px] h-[2px] rounded-full"
-                          style={{ backgroundColor: 'rgb(var(--c-muted))' }}
-                        />
-                      </div>
-                    );
-                  }
-                  return (
-                    <div
-                      key={idx}
-                      className={`aspect-square rounded-[2px] transition-colors ${
-                        isTodayCell ? 'ring-1 ring-fg/40' : ''
-                      }`}
-                      style={style}
-                    />
-                  );
-                })}
-              </div>
-            </div>
+                {label}
+              </span>
+            ))}
           </div>
-        ))}
+
+          {/* Клетки: колонки — недели, строки — дни недели */}
+          <div
+            className="grid gap-[3px]"
+            style={{
+              gridTemplateColumns: `repeat(${WEEKS}, minmax(0, 1fr))`,
+              gridAutoFlow: 'column',
+              gridTemplateRows: 'repeat(7, auto)',
+            }}
+          >
+            {Array.from({ length: WEEKS * 7 }, (_, idx) => {
+              const d = addDays(gridStart, idx);
+              const style = cellStyle(d);
+              const isTodayCell = formatDate(d) === todayKey;
+              if (!style) {
+                return (
+                  <div
+                    key={idx}
+                    className={`aspect-square cell-r bg-elev flex items-center justify-center ${
+                      isTodayCell ? 'ring-1 ring-fg/40' : ''
+                    }`}
+                    style={{ opacity: d > today ? 0.45 : 1 }}
+                  >
+                    <span
+                      className="w-[2px] h-[2px] rounded-full"
+                      style={{ backgroundColor: 'rgb(var(--c-muted))' }}
+                    />
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={idx}
+                  className={`aspect-square cell-r transition-colors ${
+                    isTodayCell ? 'ring-1 ring-fg/40' : ''
+                  }`}
+                  style={style}
+                />
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Легенда */}
       <div className="flex items-center justify-end gap-1.5 mt-4">
         <span className="text-[10px] text-faint">{t('less')}</span>
-        <div className="w-3 h-3 rounded-[3px] bg-elev" />
-        <div className="w-3 h-3 rounded-[3px]" style={{ backgroundColor: `${color}66` }} />
-        <div className="w-3 h-3 rounded-[3px]" style={{ backgroundColor: color }} />
+        <div className="w-3 h-3 cell-r bg-elev" />
+        <div className="w-3 h-3 cell-r" style={{ backgroundColor: `${color}66` }} />
+        <div className="w-3 h-3 cell-r" style={{ backgroundColor: color }} />
         <span className="text-[10px] text-faint">{t('more')}</span>
       </div>
     </div>
@@ -395,8 +391,7 @@ function MonthlyLineChart({
 
   return (
     <div
-      className="rounded-2xl bg-card border p-4"
-      style={{ borderColor: `${color}22` }}
+      className="rounded-[26px] glass p-4"
     >
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
         <defs>
