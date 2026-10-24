@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { AuthScreen } from '@/screens/AuthScreen';
+import { NewPasswordScreen } from '@/screens/NewPasswordScreen';
 import { MainViews } from '@/screens/MainViews';
 import { StatisticsScreen } from '@/screens/StatisticsScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
@@ -8,7 +9,7 @@ import { BottomNav, type Tab } from '@/components/BottomNav';
 import { GlassBackground } from '@/components/GlassBackground';
 
 export function AppShell() {
-  const { user, loading } = useAuth();
+  const { user, loading, recovery } = useAuth();
   const [tab, setTab] = useState<Tab>('week');
 
   if (loading) {
@@ -17,6 +18,11 @@ export function AppShell() {
         <div className="w-8 h-8 border-2 border-line2 border-t-sub rounded-full animate-spin" />
       </div>
     );
+  }
+
+  // Перешли по ссылке «сброс пароля»: сначала задаём новый пароль
+  if (recovery && user) {
+    return <NewPasswordScreen />;
   }
 
   if (!user) {

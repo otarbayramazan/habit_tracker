@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { useHabits } from '@/hooks/useHabits';
 import { useSettings } from '@/context/SettingsContext';
 import { formatMonthShort, useT } from '@/lib/i18n';
-import { ChevronDown, Check, Flame, Trophy, CalendarCheck, Percent, BarChart3, LayoutGrid, CircleCheck, Sparkles } from 'lucide-react';
+import { ChevronDown, Check, Flame, Trophy, CalendarCheck, Percent, BarChart3, CircleCheck, Sparkles } from 'lucide-react';
+import { HabitsGridIcon } from '@/components/HabitsGridIcon';
 import { WeekComparison, HabitsComparison, AllTimeRing, perfectDays30 } from '@/components/StatsCharts';
 import { isCompletedOn } from '@/lib/dateUtils';
 import {
@@ -90,9 +91,7 @@ export function StatisticsScreen() {
         >
           <div className="flex items-center gap-3 min-w-0">
             {isAll ? (
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-elev shrink-0">
-                <LayoutGrid className="w-[18px] h-[18px] text-fg2" />
-              </div>
+              <HabitsGridIcon habits={habits} size={36} />
             ) : (
               <div
                 className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
@@ -108,7 +107,7 @@ export function StatisticsScreen() {
           <ChevronDown className={`w-4 h-4 text-muted transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
         </button>
         {dropdownOpen && (
-          <div className="absolute z-30 top-full mt-1 w-full glass-strong rounded-2xl py-1 max-h-72 overflow-y-auto">
+          <div className="absolute z-30 top-full mt-1 w-full glass-menu rounded-2xl py-1 max-h-72 overflow-y-auto">
             <button
               onClick={() => {
                 setSelectedId(ALL);
@@ -117,9 +116,7 @@ export function StatisticsScreen() {
               className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-elev2 transition-colors border-b border-line"
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-elev">
-                  <LayoutGrid className="w-4 h-4 text-fg2" />
-                </div>
+                <HabitsGridIcon habits={habits} size={32} />
                 <span className="text-fg text-sm font-semibold">{t('allHabits')}</span>
               </div>
               {isAll && <Check className="w-4 h-4 text-fg" />}

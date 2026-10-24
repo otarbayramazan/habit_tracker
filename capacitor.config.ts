@@ -3,10 +3,10 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   // ВАЖНО: appId нельзя менять после публикации в Google Play. Решите сейчас.
   appId: 'com.otarbayramazan.habits',
-  appName: 'Habits',
+  appName: 'Kün',
   webDir: 'dist',
   android: {
-    backgroundColor: '#000000',
+    backgroundColor: '#050506',
   },
   plugins: {
     LocalNotifications: {

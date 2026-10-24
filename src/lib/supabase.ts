@@ -8,6 +8,15 @@ const supabaseAnonKey =
   import.meta.env.VITE_SUPABASE_ANON_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqYmFkb2dyc3pqcWhxd3FudHhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNTYzODgsImV4cCI6MjEwMzgzMjM4OH0.ERjzGulHNVS2jtm5czLMQ8-UmLWv-ksU94Mt4yNoMRQ';
 
+// Ссылка из письма «сброс пароля» открывает сайт с #...type=recovery в адресе.
+// supabase-js сразу стирает эту часть адреса, поэтому запоминаем её заранее.
+const initialHash = typeof window !== 'undefined' ? window.location.hash : '';
+export const openedFromRecoveryLink = /type=recovery/.test(initialHash);
+export const authLinkError = (() => {
+  const m = /error_description=([^&]+)/.exec(initialHash);
+  return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : null;
+})();
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type FrequencyType = 'everyday' | 'weekly' | 'monthly';

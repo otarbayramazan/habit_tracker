@@ -1,7 +1,9 @@
 import { useAuth } from '@/context/AuthContext';
 import { useSettings, type Language, type ThemeMode } from '@/context/SettingsContext';
 import { LANGUAGE_NAMES, useT } from '@/lib/i18n';
-import { LogOut, Globe, User, Check, Monitor, Moon, Sun } from 'lucide-react';
+import { useState } from 'react';
+import { LogOut, Globe, User, Check, Monitor, Moon, Sun, Mail, KeyRound, ChevronRight } from 'lucide-react';
+import { AccountSheet, type AccountSheetMode } from '@/components/AccountSheet';
 
 const LANGUAGES: Language[] = ['kk', 'ru', 'en'];
 
@@ -9,6 +11,9 @@ export function SettingsScreen() {
   const { user, signOut } = useAuth();
   const { language, setLanguage, theme, setTheme } = useSettings();
   const t = useT(language);
+  const [sheet, setSheet] = useState<AccountSheetMode>(null);
+  // Пока смена почты не подтверждена, Supabase хранит новый адрес в user.new_email
+  const pendingEmail = (user as { new_email?: string } | null)?.new_email;
 
   const themes: { id: ThemeMode; label: string; icon: React.ReactNode }[] = [
     { id: 'system', label: t('themeSystem'), icon: <Monitor className="w-5 h-5" /> },
@@ -29,8 +34,15 @@ export function SettingsScreen() {
           <div className="flex-1 min-w-0">
             <p className="text-muted text-xs">{t('email')}</p>
             <p className="text-fg text-sm font-medium truncate">{user?.email}</p>
+            {pendingEmail && (
+              <p className="text-[11px] text-amber-500 mt-0.5 truncate">
+                {t('emailPending').replace('{email}', pendingEmail)}
+              </p>
+            )}
           </div>
         </div>
+        <ActionRow icon={<Mail className="w-5 h-5" />} label={t('changeEmail')} onClick={() => setSheet('email')} />
+        <ActionRow icon={<KeyRound className="w-5 h-5" />} label={t('changePassword')} onClick={() => setSheet('password')} />
         <button
           onClick={() => signOut()}
           className="w-full flex items-center gap-3 p-4 text-red-400 hover:bg-red-950/20 transition-colors"
@@ -67,7 +79,18 @@ export function SettingsScreen() {
           />
         ))}
       </Section>
+      <AccountSheet mode={sheet} onClose={() => setSheet(null)} />
     </div>
+  );
+}
+
+function ActionRow({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-3 p-4 hover:bg-elev transition-colors press">
+      <div className="w-10 h-10 rounded-xl bg-elev flex items-center justify-center text-sub">{icon}</div>
+      <span className="flex-1 text-left text-fg text-sm font-medium">{label}</span>
+      <ChevronRight className="w-4 h-4 text-faint" />
+    </button>
   );
 }
 

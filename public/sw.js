@@ -3,7 +3,7 @@
 // - /assets/* (файлы с отпечатком версии в имени): из кэша, они никогда не меняются.
 // - Прочие свои файлы (иконки, манифест): из кэша с фоновым обновлением.
 // - Чужие домены (Supabase и т. п.) не трогаем.
-const CACHE_NAME = 'habits-v3';
+const CACHE_NAME = 'habits-v4';
 const PRECACHE = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (event) => {

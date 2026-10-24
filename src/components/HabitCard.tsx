@@ -587,7 +587,7 @@ export function HabitCard({
               <MoreVertical className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-8 z-20 w-40 glass-strong rounded-xl py-1">
+              <div className="absolute right-0 top-8 z-20 w-40 glass-menu rounded-xl py-1">
                 {onNote && (
                   <button
                     onClick={() => { onNote(habit); setMenuOpen(false); }}
