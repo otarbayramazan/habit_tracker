@@ -370,7 +370,8 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
             </div>
           </div>
 
-          {/* Reminder */}
+          {/* Напоминания работают только в Android-приложении, в браузере их не показываем */}
+          {remindersSupported && (
           <div className="space-y-2.5">
             <label className="text-xs font-medium text-sub uppercase tracking-wide">
               {t('reminder')}
@@ -402,10 +403,8 @@ export function CreateHabitModal({ open, onClose, editingHabit }: Props) {
                 />
               </button>
             </div>
-            {reminderTime && !remindersSupported && (
-              <p className="text-xs text-muted px-1">{t('reminderWebHint')}</p>
-            )}
           </div>
+          )}
 
           {error && (
             <div className="text-sm text-red-400 bg-red-950/40 border border-red-900/40 rounded-xl px-4 py-2.5">

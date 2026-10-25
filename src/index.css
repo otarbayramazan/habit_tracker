@@ -221,3 +221,6 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Без системного меню «копировать/поделиться» при долгом нажатии на карточку (iOS) */
+.no-callout { -webkit-touch-callout: none; }

@@ -9,6 +9,7 @@ import {
   calculateFrequencyStreak, getForgivenDates,
 } from '@/lib/dateUtils';
 import { ProgressRing } from '@/components/ProgressRing';
+import { useLongPress } from '@/hooks/useLongPress';
 
 type ViewType = 'week' | 'month' | 'year';
 
@@ -16,13 +17,14 @@ type Props = {
   habit: HabitWithCompletions;
   view: ViewType;
   onToggle: (habitId: string, date: string, target: number) => void;
+  onDecrement: (habitId: string, date: string) => void;
   onEdit: (habit: HabitWithCompletions) => void;
   onDelete: (habit: HabitWithCompletions) => void;
   onNote?: (habit: HabitWithCompletions) => void;
   jiggleMode?: boolean;
   jiggleIndex?: number;
   isDragging?: boolean;
-  onLongPress?: () => void;
+  /** Включить режим перестановки карточек (пункт меню «Изменить порядок») */
   onDragStart?: (e: React.PointerEvent) => void;
 };
 
@@ -52,6 +54,7 @@ function SquareCell({
   isFuture,
   size,
   onClick,
+  onLongPress,
   locked,
   forgiven = false,
 }: {
@@ -63,9 +66,11 @@ function SquareCell({
   isFuture: boolean;
   size: 'sm' | 'md';
   onClick: () => void;
+  onLongPress?: () => void;
   locked: boolean;
   forgiven?: boolean;
 }) {
+  const press = useLongPress(onClick, count > 0 ? onLongPress : undefined);
   const completed = count >= target;
   const partial = count > 0 && count < target;
   const isMulti = target > 1;
@@ -115,8 +120,8 @@ function SquareCell({
 
   return (
     <button
-      onClick={onClick}
-      className={`relative ${dim} transition-all active:scale-90 flex items-center justify-center cursor-pointer hover:brightness-125 ${
+      {...press}
+      className={`relative ${dim} transition-all active:scale-90 select-none touch-manipulation flex items-center justify-center cursor-pointer hover:brightness-125 ${
         isToday ? 'ring-1 ring-fg/40' : ''
       }`}
       style={{
@@ -168,6 +173,7 @@ function WeekView({
   dayLabels,
   today,
   onToggle,
+  onDecrement,
   jiggleMode,
 }: {
   dates: Date[];
@@ -180,6 +186,7 @@ function WeekView({
   dayLabels: string[];
   today: Date;
   onToggle: (date: string) => void;
+  onDecrement: (date: string) => void;
   jiggleMode: boolean;
 }) {
   const isFuture = (d: Date) => d > today;
@@ -219,6 +226,10 @@ function WeekView({
                 if (jiggleMode || isFuture(d) || isPast(d)) return;
                 onToggle(formatDate(d));
               }}
+              onLongPress={() => {
+                if (jiggleMode || isFuture(d) || isPast(d)) return;
+                onDecrement(formatDate(d));
+              }}
               locked={locked}
             />
           ) : (
@@ -243,6 +254,7 @@ function MonthView({
   currentMonth,
   today,
   onToggle,
+  onDecrement,
   jiggleMode,
 }: {
   weeks: Date[][];
@@ -256,6 +268,7 @@ function MonthView({
   currentMonth: number;
   today: Date;
   onToggle: (date: string) => void;
+  onDecrement: (date: string) => void;
   jiggleMode: boolean;
 }) {
   const isFuture = (d: Date) => d > today;
@@ -302,6 +315,10 @@ function MonthView({
                 if (jiggleMode || isFuture(d) || isPast(d)) return;
                 onToggle(formatDate(d));
               }}
+              onLongPress={() => {
+                if (jiggleMode || isFuture(d) || isPast(d)) return;
+                onDecrement(formatDate(d));
+              }}
               locked={locked}
             />
           ) : (
@@ -330,6 +347,7 @@ function YearView({
   frequencyDays,
   today,
   onToggle,
+  onDecrement,
   jiggleMode,
 }: {
   year: number;
@@ -342,6 +360,7 @@ function YearView({
   today: Date;
   language: Language;
   onToggle: (date: string) => void;
+  onDecrement: (date: string) => void;
   jiggleMode: boolean;
 }) {
   const todayKey = formatDate(today);
@@ -391,11 +410,12 @@ function YearView({
         const waiting = isTodayCell && !completed && !partial;
 
         return (
-          <button
+          <YearCell
             key={key}
-            disabled={!canTap}
-            onClick={() => onToggle(key)}
-            aria-label={key}
+            canTap={canTap}
+            onTap={() => onToggle(key)}
+            onLongPress={count > 0 ? () => onDecrement(key) : undefined}
+            label={key}
             className={`aspect-square cell-r transition-all ${
               canTap ? 'cursor-pointer active:scale-90' : 'cursor-default'
             } ${isTodayCell ? 'ring-1 ring-fg/50' : ''}`}
@@ -416,26 +436,51 @@ function YearView({
   );
 }
 
+// Клетка вкладки «История» с поддержкой долгого нажатия
+function YearCell({
+  canTap,
+  onTap,
+  onLongPress,
+  label,
+  className,
+  style,
+}: {
+  canTap: boolean;
+  onTap: () => void;
+  onLongPress?: () => void;
+  label: string;
+  className: string;
+  style: React.CSSProperties;
+}) {
+  const press = useLongPress(onTap, onLongPress);
+  return (
+    <button
+      {...(canTap ? press : {})}
+      disabled={!canTap}
+      aria-label={label}
+      className={`${className} select-none touch-manipulation`}
+      style={style}
+    />
+  );
+}
+
 export function HabitCard({
   habit,
   view,
   onToggle,
+  onDecrement,
   onEdit,
   onDelete,
   onNote,
   jiggleMode = false,
   jiggleIndex = 0,
   isDragging = false,
-  onLongPress,
   onDragStart,
 }: Props) {
   const { language } = useSettings();
   const t = useT(language);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressFired = useRef(false);
-  const pointerStart = useRef<{ x: number; y: number } | null>(null);
 
   const freqType: FrequencyType = habit.frequency_type ?? 'everyday';
   const freqDays: number[] = habit.frequency_days ?? [];
@@ -459,45 +504,14 @@ export function HabitCard({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    };
-  }, []);
-
+  // Перетаскивание работает только в режиме перестановки (включается из меню)
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (jiggleMode) {
-      onDragStart?.(e);
-      return;
-    }
-    longPressFired.current = false;
-    pointerStart.current = { x: e.clientX, y: e.clientY };
-    longPressTimer.current = setTimeout(() => {
-      longPressFired.current = true;
-      onLongPress?.();
-    }, 400);
+    if (jiggleMode) onDragStart?.(e);
   };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!jiggleMode && longPressTimer.current && pointerStart.current) {
-      const dx = Math.abs(e.clientX - pointerStart.current.x);
-      const dy = Math.abs(e.clientY - pointerStart.current.y);
-      if (dx > 10 || dy > 10) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
-      }
-    }
-  };
-
-  const handlePointerUp = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-
+  const handlePointerMove = () => {};
+  const handlePointerUp = () => {};
   const handleCardClick = (e: React.MouseEvent) => {
-    if (longPressFired.current || jiggleMode) {
+    if (jiggleMode) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -518,22 +532,37 @@ export function HabitCard({
     ? `jiggle jiggle-delay-${jiggleIndex % 4}`
     : '';
 
-  const dragStyle: React.CSSProperties = isDragging
-    ? { opacity: 0.4, transform: 'scale(0.98)' }
-    : {};
+  const dragStyle: React.CSSProperties = {};
 
   const handleToggle = (date: string) => onToggle(habit.id, date, habit.target_count);
+  const handleDecrement = (date: string) => onDecrement(habit.id, date);
+  const scheduledToday = isScheduledOn(new Date(), freqType, freqDays);
+  // Кольцо у иконки: нажатие отмечает сегодня, долгое нажатие убирает одну отметку
+  const ringPress = useLongPress(
+    () => {
+      if (!jiggleMode && scheduledToday) handleToggle(todayKey);
+    },
+    (habit.completions[todayKey] ?? 0) > 0 && !jiggleMode ? () => handleDecrement(todayKey) : undefined
+  );
 
   const renderHeader = (compact: boolean) => (
     <div className={`flex items-start ${compact ? 'mb-2' : 'mb-4'}`}>
       <div className={`flex items-center ${compact ? 'gap-2' : 'gap-2.5'} min-w-0 flex-1`}>
-        <ProgressRing
-          emoji={habit.emoji}
-          color={habit.color}
-          count={habit.completions[todayKey] ?? 0}
-          target={habit.target_count}
-          size={compact ? 32 : 46}
-        />
+        <button
+          {...ringPress}
+          aria-label={t('today')}
+          className={`shrink-0 rounded-full select-none touch-manipulation ${
+            scheduledToday && !jiggleMode ? 'press cursor-pointer' : 'cursor-default'
+          }`}
+        >
+          <ProgressRing
+            emoji={habit.emoji}
+            color={habit.color}
+            count={habit.completions[todayKey] ?? 0}
+            target={habit.target_count}
+            size={compact ? 32 : 46}
+          />
+        </button>
         {compact && (
           <div className="min-w-0 flex-1">
             <h3
@@ -587,7 +616,7 @@ export function HabitCard({
               <MoreVertical className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-8 z-20 w-40 glass-menu rounded-xl py-1">
+              <div className="absolute right-0 top-8 z-20 w-44 glass-menu rounded-xl py-1">
                 {onNote && (
                   <button
                     onClick={() => { onNote(habit); setMenuOpen(false); }}
@@ -644,6 +673,7 @@ export function HabitCard({
           currentMonth={currentMonth}
           today={today}
           onToggle={handleToggle}
+          onDecrement={handleDecrement}
           jiggleMode={jiggleMode}
         />
       </div>
@@ -674,6 +704,7 @@ export function HabitCard({
           dayLabels={dayLabels}
           today={today}
           onToggle={handleToggle}
+          onDecrement={handleDecrement}
           jiggleMode={jiggleMode}
         />
       </div>
@@ -703,6 +734,7 @@ export function HabitCard({
         today={today}
         language={language}
         onToggle={handleToggle}
+          onDecrement={handleDecrement}
         jiggleMode={jiggleMode}
       />
     </div>

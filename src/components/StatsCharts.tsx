@@ -195,7 +195,12 @@ export function WeekComparison({ habit, t }: { habit: HabitWithCompletions; t: T
 // ── Общий итог за 30 дней: кольца активности ──
 // У каждой привычки своё кольцо, заполненное на её процент выполнения за 30 дней.
 // Бледный след — сколько осталось до 100%. В центре — общий процент (все выполненные дни / все запланированные).
-const MAX_RINGS = 5;
+// Колец не больше 4: если привычек больше, три лучшие получают свои кольца,
+// а все остальные объединяются в одно серое кольцо «Остальные (N)».
+const MAX_RINGS = 4;
+const OTHERS_COLOR = '#8e8e93';
+
+type Ring = { key: string; title: string; color: string; rate: number; others?: number };
 
 export function AllTimeRing({ habits, t }: { habits: HabitWithCompletions[]; t: T }) {
   const data = useMemo(() => {
@@ -224,7 +229,25 @@ export function AllTimeRing({ habits, t }: { habits: HabitWithCompletions[]; t: 
 
   if (data.overall === null) return null;
 
-  const shown = data.rows.slice(0, MAX_RINGS);
+  let shown: Ring[];
+  if (data.rows.length <= MAX_RINGS) {
+    shown = data.rows.map(({ h, rate }) => ({ key: h.id, title: h.title, color: h.color, rate }));
+  } else {
+    const top = data.rows.slice(0, MAX_RINGS - 1);
+    const rest = data.rows.slice(MAX_RINGS - 1);
+    const restDone = rest.reduce((a, r) => a + r.done, 0);
+    const restScheduled = rest.reduce((a, r) => a + r.scheduled, 0);
+    shown = [
+      ...top.map(({ h, rate }) => ({ key: h.id, title: h.title, color: h.color, rate })),
+      {
+        key: 'others',
+        title: t('othersHabits').replace('{n}', String(rest.length)),
+        color: OTHERS_COLOR,
+        rate: restScheduled === 0 ? 0 : restDone / restScheduled,
+        others: rest.length,
+      },
+    ];
+  }
   const size = 148;
   const stroke = shown.length > 3 ? 10 : 12;
   const spacing = 3;
@@ -240,17 +263,17 @@ export function AllTimeRing({ habits, t }: { habits: HabitWithCompletions[]; t: 
       <div className="flex items-center gap-4">
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
-          {shown.map(({ h, rate }, i) => {
+          {shown.map(({ key, color, rate }, i) => {
             const r = size / 2 - stroke / 2 - i * (stroke + spacing);
             const c = 2 * Math.PI * r;
             return (
-              <g key={h.id}>
+              <g key={key}>
                 <circle
                   cx={size / 2}
                   cy={size / 2}
                   r={r}
                   fill="none"
-                  stroke={h.color}
+                  stroke={color}
                   strokeOpacity={0.18}
                   strokeWidth={stroke}
                 />
@@ -260,7 +283,7 @@ export function AllTimeRing({ habits, t }: { habits: HabitWithCompletions[]; t: 
                     cy={size / 2}
                     r={r}
                     fill="none"
-                    stroke={h.color}
+                    stroke={color}
                     strokeWidth={stroke}
                     strokeLinecap="round"
                     strokeDasharray={`${c * Math.min(rate, 1)} ${c}`}
@@ -280,13 +303,13 @@ export function AllTimeRing({ habits, t }: { habits: HabitWithCompletions[]; t: 
 
       {/* Легенда столбиком: в том же порядке, что кольца (снаружи → внутрь) */}
       <div className="flex-1 min-w-0 space-y-2.5">
-        {data.rows.map(({ h, rate }, i) => (
-          <div key={h.id} className={`min-w-0 ${i >= MAX_RINGS ? 'opacity-60' : ''}`}>
+        {shown.map(({ key, title, color, rate }) => (
+          <div key={key} className="min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: h.color }} />
-              <span className="text-fg2 text-xs truncate">{h.title}</span>
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+              <span className="text-fg2 text-xs truncate">{title}</span>
             </div>
-            <p className="text-sm font-bold leading-tight pl-3.5" style={{ color: h.color }}>
+            <p className="text-sm font-bold leading-tight pl-3.5" style={{ color }}>
               {Math.round(rate * 100)}%
             </p>
           </div>

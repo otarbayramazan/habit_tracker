@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { AuthScreen } from '@/screens/AuthScreen';
 import { NewPasswordScreen } from '@/screens/NewPasswordScreen';
-import { MainViews } from '@/screens/MainViews';
+import { MainViews, type ViewType } from '@/screens/MainViews';
 import { StatisticsScreen } from '@/screens/StatisticsScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { BottomNav, type Tab } from '@/components/BottomNav';
@@ -10,7 +10,23 @@ import { GlassBackground } from '@/components/GlassBackground';
 
 export function AppShell() {
   const { user, loading, recovery } = useAuth();
-  const [tab, setTab] = useState<Tab>('week');
+  const [tab, setTab] = useState<Tab>('habits');
+  // Масштаб на вкладке «Привычки» запоминаем между запусками
+  const [view, setView] = useState<ViewType>(() => {
+    try {
+      const v = localStorage.getItem('ht-view');
+      return v === 'month' || v === 'year' ? v : 'week';
+    } catch {
+      return 'week';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('ht-view', view);
+    } catch {
+      /* ignore */
+    }
+  }, [view]);
 
   if (loading) {
     return (
@@ -35,14 +51,8 @@ export function AppShell() {
   return (
     <div className="relative isolate min-h-screen">
       <GlassBackground />
-      <div className={pane('week')}>
-        <MainViews view="week" />
-      </div>
-      <div className={pane('month')}>
-        <MainViews view="month" />
-      </div>
-      <div className={pane('year')}>
-        <MainViews view="year" />
+      <div className={pane('habits')}>
+        <MainViews view={view} onViewChange={setView} />
       </div>
       <div className={pane('statistics')}>
         <StatisticsScreen />
