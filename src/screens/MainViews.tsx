@@ -117,48 +117,184 @@ export function MainViews({ view, onViewChange }: { view: ViewType; onViewChange
     { id: 'year', label: t('history') },
   ];
 
-  // Переключение Неделя / Месяц / История: нажатием или свайпом влево-вправо
+  // ── Неделя / Месяц / История как страницы: листаются пальцем ──
+  // Все три вида лежат рядом в «ленте»; лента едет за пальцем, при отпускании
+  // докатывается до ближайшей страницы. Половинки обеих страниц видны, пока держишь палец.
   const ORDER: ViewType[] = ['week', 'month', 'year'];
-  const switchView = (next: ViewType) => {
-    if (next === view) return;
-    const dir = ORDER.indexOf(next) > ORDER.indexOf(view) ? 1 : -1;
-    onViewChange(next);
-    tapHaptic();
-    // Новый вид мягко въезжает с той стороны, куда листали
-    requestAnimationFrame(() =>
-      listRef.current?.animate(
-        [
-          { transform: `translateX(${dir * 36}px)`, opacity: 0.2 },
-          { transform: 'none', opacity: 1 },
-        ],
-        { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-      )
-    );
+  const GAP = 24;
+  const pagerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const pillTextRef = useRef<HTMLDivElement>(null);
+  // Тёмные подписи видны только внутри белой плашки — цвет текста меняется ровно по её краю
+  const pillClip = (pos: number) =>
+    `inset(0 ${((ORDER.length - 1 - pos) / ORDER.length) * 100}% 0 ${(pos / ORDER.length) * 100}% round 0.75rem)`;
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const paging = useRef(false); // идёт докатывание — новые жесты ждут
+  const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+
+  const pageStep = () => (trackRef.current?.offsetWidth ?? window.innerWidth) + GAP;
+  const pageRefs = useRef(new Map<ViewType, HTMLDivElement>());
+
+  // Соседние страницы не выше текущей (и экрана) — иначе страницу можно было бы прокрутить в пустоту
+  const fitPages = () => {
+    const active = pageRefs.current.get(viewRef.current);
+    if (!active) return;
+    const h = Math.max(active.offsetHeight, window.innerHeight);
+    pageRefs.current.forEach((el, v) => {
+      const isActive = v === viewRef.current;
+      el.style.maxHeight = isActive ? '' : `${h}px`;
+      el.style.overflow = isActive ? '' : 'hidden';
+    });
+  };
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(fitPages);
+    pageRefs.current.forEach((el) => ro.observe(el));
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, habits.length > 0, todaysHabits.length > 0]);
+
+  const setTrack = (px: number, ms = 0) => {
+    const track = trackRef.current;
+    const pill = pillRef.current;
+    const tr = ms ? `transform ${ms}ms ${EASE}` : 'none';
+    if (track) {
+      track.style.transition = tr;
+      track.style.transform = px ? `translate3d(${px}px, 0, 0)` : '';
+    }
+    if (pill) {
+      // «Таблетка» в переключателе едет вместе с пальцем
+      const pos = ORDER.indexOf(viewRef.current) - px / pageStep();
+      pill.style.transition = tr;
+      pill.style.transform = `translateX(${pos * 100}%)`;
+      const txt = pillTextRef.current;
+      if (txt) {
+        txt.style.transition = ms ? `clip-path ${ms}ms ${EASE}` : 'none';
+        txt.style.clipPath = pillClip(pos);
+      }
+    }
   };
 
-  const swipe = useRef<{ x: number; y: number; t: number } | null>(null);
-  const onTouchStart = (e: React.TouchEvent) => {
-    const tch = e.touches[0];
-    // У краёв экрана — системный жест «назад», не мешаем ему
-    if (e.touches.length !== 1 || tch.clientX < 24 || tch.clientX > window.innerWidth - 24) {
-      swipe.current = null;
+  // Докатить ленту до страницы next и сделать её текущей
+  const goTo = (next: ViewType, ms = 380) => {
+    const delta = ORDER.indexOf(next) - ORDER.indexOf(viewRef.current);
+    if (!delta) {
+      setTrack(0, 260);
       return;
     }
-    swipe.current = { x: tch.clientX, y: tch.clientY, t: Date.now() };
+    paging.current = true;
+    setTrack(-delta * pageStep(), ms);
+    window.setTimeout(() => {
+      onViewChange(next);
+    }, ms);
   };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    const s0 = swipe.current;
-    swipe.current = null;
-    if (!s0 || drag.current || habits.length === 0) return;
-    const tch = e.changedTouches[0];
-    const dx = tch.clientX - s0.x;
-    const dy = tch.clientY - s0.y;
-    // Явный горизонтальный жест: достаточно длинный, быстрый и не прокрутка
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.7 || Date.now() - s0.t > 700) return;
-    const i = ORDER.indexOf(view);
-    const next = ORDER[i + (dx < 0 ? 1 : -1)];
-    if (next) switchView(next);
+
+  // После смены вида лента без анимации возвращается в ноль — визуально ничего не прыгает
+  useLayoutEffect(() => {
+    setTrack(0);
+    fitPages();
+    paging.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  const switchView = (next: ViewType) => {
+    if (next === view || paging.current) return;
+    goTo(next);
   };
+
+  // Жест пальцем (свои обработчики, чтобы можно было запретить прокрутку страницы во время листания)
+  useEffect(() => {
+    const host = containerRef.current;
+    if (!host) return;
+    let g: {
+      x: number;
+      y: number;
+      lock: 'x' | 'y' | null;
+      off: number;
+      samples: { t: number; x: number }[];
+    } | null = null;
+
+    const start = (e: TouchEvent) => {
+      const tch = e.touches[0];
+      // У краёв экрана — системный жест «назад», не мешаем ему
+      if (
+        e.touches.length !== 1 ||
+        paging.current ||
+        drag.current ||
+        !trackRef.current ||
+        tch.clientX < 24 ||
+        tch.clientX > window.innerWidth - 24
+      ) {
+        g = null;
+        return;
+      }
+      g = { x: tch.clientX, y: tch.clientY, lock: null, off: 0, samples: [{ t: e.timeStamp, x: tch.clientX }] };
+    };
+
+    const move = (e: TouchEvent) => {
+      if (!g) return;
+      if (drag.current) {
+        g = null;
+        return;
+      }
+      const tch = e.touches[0];
+      const dx = tch.clientX - g.x;
+      const dy = tch.clientY - g.y;
+      if (!g.lock) {
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+          g.lock = 'x';
+          cancelPending(); // это листание, а не удержание карточки
+        } else if (Math.abs(dy) > 10) {
+          g.lock = 'y';
+        }
+      }
+      if (g.lock !== 'x') return;
+      e.preventDefault();
+      const idx = ORDER.indexOf(viewRef.current);
+      const atEdge = (idx === 0 && dx > 0) || (idx === ORDER.length - 1 && dx < 0);
+      g.off = atEdge ? dx * 0.25 : dx; // на крайней странице — «резинка»
+      g.samples.push({ t: e.timeStamp, x: tch.clientX });
+      if (g.samples.length > 5) g.samples.shift();
+      setTrack(g.off);
+    };
+
+    const end = () => {
+      const s0 = g;
+      g = null;
+      if (!s0 || s0.lock !== 'x') return;
+      const a = s0.samples[0];
+      const b = s0.samples[s0.samples.length - 1];
+      const v = b.t > a.t ? (b.x - a.x) / (b.t - a.t) : 0; // px/мс
+      const idx = ORDER.indexOf(viewRef.current);
+      const step = pageStep();
+      let dir = 0;
+      if ((s0.off < -step * 0.3 || v < -0.4) && s0.off < 0) dir = 1;
+      else if ((s0.off > step * 0.3 || v > 0.4) && s0.off > 0) dir = -1;
+      const next = ORDER[idx + dir];
+      if (dir && next) {
+        // Чем быстрее смахнул, тем быстрее докатывается
+        const left = step - Math.abs(s0.off);
+        const ms = Math.round(Math.min(420, Math.max(220, left / Math.max(Math.abs(v), 0.9))));
+        goTo(next, ms);
+      } else {
+        setTrack(0, 320);
+      }
+    };
+
+    host.addEventListener('touchstart', start, { passive: true });
+    host.addEventListener('touchmove', move, { passive: false });
+    host.addEventListener('touchend', end);
+    host.addEventListener('touchcancel', end);
+    return () => {
+      host.removeEventListener('touchstart', start);
+      host.removeEventListener('touchmove', move);
+      host.removeEventListener('touchend', end);
+      host.removeEventListener('touchcancel', end);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openCreate = () => {
     setEditingHabit(null);
@@ -418,11 +554,56 @@ export function MainViews({ view, onViewChange }: { view: ViewType; onViewChange
         .filter((h): h is HabitWithCompletions => Boolean(h))
     : todaysHabits;
 
+  // Список карточек одного вида. Перетаскивать можно только на текущей странице.
+  const renderList = (v: ViewType, active: boolean) => (
+    <div
+      ref={active ? listRef : undefined}
+      className={`relative ${v === 'month' ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'}`}
+    >
+      {(active ? shownHabits : todaysHabits).map((habit, idx) => {
+        const isDragging = active && draggingId === habit.id;
+        return (
+          <div
+            key={habit.id}
+            ref={
+              active
+                ? (el) => {
+                    if (el) itemRefs.current.set(habit.id, el);
+                    else itemRefs.current.delete(habit.id);
+                  }
+                : undefined
+            }
+            onPointerDown={active ? (e) => handlePressStart(e, habit.id) : undefined}
+            onPointerMove={active ? handlePressMove : undefined}
+            onPointerUp={active ? cancelPending : undefined}
+            onPointerCancel={active ? cancelPending : undefined}
+            onContextMenu={(e) => e.preventDefault()}
+            className={`relative select-none no-callout ${isDragging ? 'z-30' : ''}`}
+          >
+            <div
+              className={`card-rise rounded-[26px] transition-shadow ${isDragging ? 'shadow-2xl shadow-black/60' : ''}`}
+              style={{ animationDelay: `${Math.min(idx, 8) * 45}ms` }}
+            >
+              <HabitCard
+                habit={habit}
+                view={v}
+                onToggle={toggleCompletion}
+                onDecrement={decrementCompletion}
+                onEdit={openEdit}
+                onDelete={handleDelete}
+                onNote={setNoteHabit}
+                isDragging={isDragging}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div
       ref={containerRef}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
       className="px-4 pt-6 pb-32 max-w-2xl mx-auto min-h-[100dvh]"
     >
       {/* Header */}
@@ -446,20 +627,35 @@ export function MainViews({ view, onViewChange }: { view: ViewType; onViewChange
 
       {/* Масштаб: Неделя | Месяц | История */}
       {habits.length > 0 && (
-        <div className="flex glass rounded-2xl p-1 mb-4" role="tablist">
+        <div className="relative flex glass rounded-2xl p-1 mb-4" role="tablist">
+          <div
+            ref={pillRef}
+            className="absolute top-1 bottom-1 left-1 rounded-xl bg-fg shadow"
+            style={{ width: 'calc((100% - 0.5rem) / 3)', transform: `translateX(${ORDER.indexOf(view) * 100}%)` }}
+          />
           {viewOptions.map((o) => (
             <button
               key={o.id}
               role="tab"
               aria-selected={view === o.id}
               onClick={() => switchView(o.id)}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all press ${
-                view === o.id ? 'bg-fg text-app shadow' : 'text-sub hover:text-fg'
-              }`}
+              className="relative flex-1 py-2 rounded-xl text-xs font-semibold text-sub hover:text-fg transition-colors"
             >
               {o.label}
             </button>
           ))}
+          <div
+            ref={pillTextRef}
+            aria-hidden="true"
+            className="absolute inset-1 flex pointer-events-none"
+            style={{ clipPath: pillClip(ORDER.indexOf(view)) }}
+          >
+            {viewOptions.map((o) => (
+              <span key={o.id} className="flex-1 py-2 text-center text-xs font-semibold text-app">
+                {o.label}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
@@ -548,44 +744,31 @@ export function MainViews({ view, onViewChange }: { view: ViewType; onViewChange
           </button>
         </div>
       ) : (
-        <div
-          ref={listRef}
-          className={`relative ${view === 'month' ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'}`}
-        >
-          {shownHabits.map((habit, idx) => {
-            const isDragging = draggingId === habit.id;
-            return (
-              <div
-                key={habit.id}
-                ref={(el) => {
-                  if (el) itemRefs.current.set(habit.id, el);
-                  else itemRefs.current.delete(habit.id);
-                }}
-                onPointerDown={(e) => handlePressStart(e, habit.id)}
-                onPointerMove={handlePressMove}
-                onPointerUp={cancelPending}
-                onPointerCancel={cancelPending}
-                onContextMenu={(e) => e.preventDefault()}
-                className={`relative select-none no-callout ${isDragging ? 'z-30' : ''}`}
-              >
-                <div
-                  className={`card-rise rounded-[26px] transition-shadow ${isDragging ? 'shadow-2xl shadow-black/60' : ''}`}
-                  style={{ animationDelay: `${Math.min(idx, 8) * 45}ms` }}
-                >
-                  <HabitCard
-                    habit={habit}
-                    view={view}
-                    onToggle={toggleCompletion}
-                    onDecrement={decrementCompletion}
-                    onEdit={openEdit}
-                    onDelete={handleDelete}
-                    onNote={setNoteHabit}
-                    isDragging={isDragging}
-                  />
+        <div ref={pagerRef} className="overflow-x-clip -mx-4 px-4">
+          <div ref={trackRef} className="relative" style={{ willChange: 'transform' }}>
+            {ORDER.map((v) => {
+              const pos = ORDER.indexOf(v) - ORDER.indexOf(view);
+              const setRef = (el: HTMLDivElement | null) => {
+                if (el) pageRefs.current.set(v, el);
+                else pageRefs.current.delete(v);
+              };
+              return pos === 0 ? (
+                <div key={v} ref={setRef}>
+                  {renderList(v, true)}
                 </div>
-              </div>
-            );
-          })}
+              ) : (
+                <div
+                  key={v}
+                  ref={setRef}
+                  aria-hidden="true"
+                  className="absolute top-0 left-0 w-full pointer-events-none"
+                  style={{ transform: `translateX(calc(${pos} * (100% + ${GAP}px)))` }}
+                >
+                  {renderList(v, false)}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
